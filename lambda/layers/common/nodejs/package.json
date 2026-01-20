@@ -1,0 +1,14 @@
+{
+  "name": "overlay-common-layer",
+  "version": "1.0.0",
+  "description": "Common utilities for Overlay Platform Lambda functions",
+  "main": "index.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-bedrock-runtime": "^3.971.0",
+    "@aws-sdk/client-secrets-manager": "^3.971.0",
+    "@aws-sdk/client-s3": "^3.971.0",
+    "@aws-sdk/s3-request-presigner": "^3.971.0",
+    "pg": "^8.17.1"
+  }
+}

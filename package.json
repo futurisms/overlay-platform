@@ -1,0 +1,45 @@
+{
+  "name": "overlay-platform",
+  "version": "0.1.0",
+  "bin": {
+    "overlay-platform": "bin/overlay-platform.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "migrate": "ts-node scripts/run-migrations.ts",
+    "migrate:lambda": "ts-node scripts/invoke-migration-lambda.ts",
+    "db:init": "ts-node scripts/invoke-migration-lambda.ts",
+    "create-admin": "node scripts/create-admin-user.js",
+    "seed:llm-config": "node scripts/seed-llm-config.js",
+    "test:api": "node scripts/test-api.js",
+    "test:workflow": "node scripts/test-workflow.js",
+    "query:results": "node scripts/query-results.js"
+  },
+  "devDependencies": {
+    "@types/jest": "^30",
+    "@types/node": "^24.10.9",
+    "aws-cdk": "2.1101.0",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.971.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.971.0",
+    "@aws-sdk/client-dynamodb": "^3.971.0",
+    "@aws-sdk/client-lambda": "^3.971.0",
+    "@aws-sdk/client-s3": "^3.971.0",
+    "@aws-sdk/client-secrets-manager": "^3.971.0",
+    "@aws-sdk/client-sfn": "^3.971.0",
+    "@aws-sdk/lib-dynamodb": "^3.971.0",
+    "@types/pg": "^8.16.0",
+    "aws-cdk-lib": "^2.234.1",
+    "constructs": "^10.0.0",
+    "dotenv": "^17.2.3",
+    "pg": "^8.17.1"
+  }
+}

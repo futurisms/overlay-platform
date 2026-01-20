@@ -1,0 +1,476 @@
+import * as cdk from 'aws-cdk-lib/core';
+import { Construct } from 'constructs';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+
+export interface ComputeStackProps extends cdk.StackProps {
+  readonly environmentName?: string;
+  readonly vpc: ec2.IVpc;
+  readonly auroraCluster: rds.IDatabaseCluster;
+  readonly auroraSecret: secretsmanager.ISecret;
+  readonly documentBucket: s3.IBucket;
+  readonly documentTable: dynamodb.ITable;
+  readonly llmConfigTable: dynamodb.ITable;
+  readonly claudeApiKeySecret: secretsmanager.ISecret;
+  readonly userPool: cognito.IUserPool;
+  readonly userPoolClient: cognito.IUserPoolClient;
+}
+
+export class ComputeStack extends cdk.Stack {
+  public readonly api: apigateway.RestApi;
+  public readonly structureValidatorFunction: lambda.Function;
+  public readonly contentAnalyzerFunction: lambda.Function;
+  public readonly grammarCheckerFunction: lambda.Function;
+  public readonly orchestratorFunction: lambda.Function;
+  public readonly clarificationFunction: lambda.Function;
+  public readonly scoringFunction: lambda.Function;
+
+  constructor(scope: Construct, id: string, props: ComputeStackProps) {
+    super(scope, id, props);
+
+    const environmentName = props.environmentName || 'production';
+
+    // Security Group for Lambda functions
+    const lambdaSG = new ec2.SecurityGroup(this, 'LambdaSecurityGroup', {
+      vpc: props.vpc,
+      description: 'Security group for Lambda functions with VPC access',
+      allowAllOutbound: true,
+    });
+
+    // Common Lambda environment variables
+    const commonEnvironment = {
+      AURORA_SECRET_ARN: props.auroraSecret.secretArn,
+      AURORA_ENDPOINT: props.auroraCluster.clusterEndpoint.hostname,
+      DOCUMENT_BUCKET: props.documentBucket.bucketName,
+      DOCUMENT_TABLE: props.documentTable.tableName,
+      LLM_CONFIG_TABLE: props.llmConfigTable.tableName,
+      CLAUDE_API_KEY_SECRET: props.claudeApiKeySecret.secretArn,
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+      ENVIRONMENT: environmentName,
+    };
+
+    // Common Lambda layer for shared code
+    console.log('Creating Lambda layer for shared code...');
+    const commonLayer = new lambda.LayerVersion(this, 'CommonLayer', {
+      layerVersionName: 'overlay-common-layer',
+      code: lambda.Code.fromAsset('lambda/layers/common'),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+      description: 'Common utilities, database clients, and LLM abstraction layer',
+    });
+
+    // ==========================================================================
+    // AI AGENT LAMBDA FUNCTIONS
+    // ==========================================================================
+
+    console.log('Creating AI agent Lambda functions...');
+
+    // 1. Structure Validator (Bedrock Haiku - fast validation)
+    this.structureValidatorFunction = new lambda.Function(this, 'StructureValidatorFunction', {
+      functionName: 'overlay-structure-validator',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/structure-validator'),
+      timeout: cdk.Duration.minutes(2),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'anthropic.claude-3-haiku-20240307-v1:0', // Bedrock Haiku
+      },
+      description: 'Validates document structure and format using Bedrock Haiku',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // 2. Content Analyzer (Claude Sonnet - detailed analysis)
+    this.contentAnalyzerFunction = new lambda.Function(this, 'ContentAnalyzerFunction', {
+      functionName: 'overlay-content-analyzer',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/content-analyzer'),
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 1024,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'claude-sonnet-4-5-20250929', // Claude API
+      },
+      description: 'Analyzes document content against evaluation criteria using Claude Sonnet',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // 3. Grammar Checker (Bedrock Haiku - fast grammar check)
+    this.grammarCheckerFunction = new lambda.Function(this, 'GrammarCheckerFunction', {
+      functionName: 'overlay-grammar-checker',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/grammar-checker'),
+      timeout: cdk.Duration.minutes(2),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'anthropic.claude-3-haiku-20240307-v1:0', // Bedrock Haiku
+      },
+      description: 'Checks document grammar and writing quality using Bedrock Haiku',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // 4. Orchestrator (Claude Sonnet - workflow coordination)
+    this.orchestratorFunction = new lambda.Function(this, 'OrchestratorFunction', {
+      functionName: 'overlay-orchestrator',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/orchestrator'),
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 1024,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'claude-sonnet-4-5-20250929', // Claude API
+      },
+      description: 'Orchestrates the 6-agent AI workflow using Claude Sonnet',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // 5. Clarification (Claude Sonnet - intelligent Q&A)
+    this.clarificationFunction = new lambda.Function(this, 'ClarificationFunction', {
+      functionName: 'overlay-clarification',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/clarification'),
+      timeout: cdk.Duration.minutes(3),
+      memorySize: 1024,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'claude-sonnet-4-5-20250929', // Claude API
+      },
+      description: 'Handles clarification questions during document review using Claude Sonnet',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // 6. Scoring (Claude Sonnet - final scoring)
+    this.scoringFunction = new lambda.Function(this, 'ScoringFunction', {
+      functionName: 'overlay-scoring',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/scoring'),
+      timeout: cdk.Duration.minutes(3),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        MODEL_ID: 'claude-sonnet-4-5-20250929', // Claude API
+      },
+      description: 'Calculates final scores and generates feedback using Claude Sonnet',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // ==========================================================================
+    // API LAMBDA FUNCTIONS
+    // ==========================================================================
+
+    console.log('Creating API Lambda functions...');
+
+    // Auth Handler
+    const authHandler = new lambda.Function(this, 'AuthHandler', {
+      functionName: 'overlay-api-auth',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/auth'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      layers: [commonLayer],
+      environment: {
+        USER_POOL_ID: props.userPool.userPoolId,
+        USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
+        ...commonEnvironment,
+      },
+      description: 'Handles authentication endpoints (login, register, refresh)',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // Overlays Handler
+    const overlaysHandler = new lambda.Function(this, 'OverlaysHandler', {
+      functionName: 'overlay-api-overlays',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/overlays'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Handles overlay CRUD operations',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // Sessions Handler
+    const sessionsHandler = new lambda.Function(this, 'SessionsHandler', {
+      functionName: 'overlay-api-sessions',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/sessions'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Handles document review session management',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // Submissions Handler
+    const submissionsHandler = new lambda.Function(this, 'SubmissionsHandler', {
+      functionName: 'overlay-api-submissions',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/submissions'),
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Handles document submission uploads and processing',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // Query Results Handler
+    const queryResultsHandler = new lambda.Function(this, 'QueryResultsHandler', {
+      functionName: 'overlay-query-results',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/query-results'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        AURORA_SECRET_ARN: props.auroraSecret.secretArn,
+      },
+      description: 'Queries Aurora database for document processing results',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // ==========================================================================
+    // IAM PERMISSIONS
+    // ==========================================================================
+
+    console.log('Configuring IAM permissions...');
+
+    const allLambdas = [
+      this.structureValidatorFunction,
+      this.contentAnalyzerFunction,
+      this.grammarCheckerFunction,
+      this.orchestratorFunction,
+      this.clarificationFunction,
+      this.scoringFunction,
+      authHandler,
+      overlaysHandler,
+      sessionsHandler,
+      submissionsHandler,
+      queryResultsHandler,
+    ];
+
+    // Grant all Lambdas access to secrets
+    allLambdas.forEach(fn => {
+      props.auroraSecret.grantRead(fn);
+      props.claudeApiKeySecret.grantRead(fn);
+    });
+
+    // Grant DynamoDB access
+    allLambdas.forEach(fn => {
+      props.documentTable.grantReadWriteData(fn);
+      props.llmConfigTable.grantReadData(fn);
+    });
+
+    // Grant S3 access
+    allLambdas.forEach(fn => {
+      props.documentBucket.grantReadWrite(fn);
+    });
+
+    // Grant Bedrock access to AI functions
+    const bedrockPolicy = new iam.PolicyStatement({
+      actions: [
+        'bedrock:InvokeModel',
+        'bedrock:InvokeModelWithResponseStream',
+      ],
+      resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
+    });
+
+    [
+      this.structureValidatorFunction,
+      this.contentAnalyzerFunction,
+      this.grammarCheckerFunction,
+      this.orchestratorFunction,
+      this.clarificationFunction,
+      this.scoringFunction,
+    ].forEach(fn => fn.addToRolePolicy(bedrockPolicy));
+
+    // Grant Cognito access to auth handler
+    authHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'cognito-idp:AdminInitiateAuth',
+        'cognito-idp:AdminCreateUser',
+        'cognito-idp:AdminSetUserPassword',
+        'cognito-idp:AdminGetUser',
+        'cognito-idp:AdminUpdateUserAttributes',
+      ],
+      resources: [props.userPool.userPoolArn],
+    }));
+
+    // ==========================================================================
+    // API GATEWAY
+    // ==========================================================================
+
+    console.log('Creating API Gateway REST API...');
+
+    // Lambda Authorizer for JWT validation
+    const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
+      cognitoUserPools: [props.userPool],
+      authorizerName: 'overlay-cognito-authorizer',
+      identitySource: 'method.request.header.Authorization',
+    });
+
+    // REST API
+    this.api = new apigateway.RestApi(this, 'OverlayApi', {
+      restApiName: 'overlay-platform-api',
+      description: 'Overlay Platform REST API',
+      deployOptions: {
+        stageName: environmentName,
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        metricsEnabled: true,
+        tracingEnabled: true,
+      },
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS, // Update in production
+        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowHeaders: [
+          'Content-Type',
+          'Authorization',
+          'X-Amz-Date',
+          'X-Api-Key',
+          'X-Amz-Security-Token',
+        ],
+        maxAge: cdk.Duration.hours(1),
+      },
+      cloudWatchRole: true,
+    });
+
+    // API Resources and Methods
+    const authResource = this.api.root.addResource('auth');
+    authResource.addMethod('POST', new apigateway.LambdaIntegration(authHandler), {
+      authorizationType: apigateway.AuthorizationType.NONE, // Public endpoint
+    });
+
+    const overlaysResource = this.api.root.addResource('overlays');
+    overlaysResource.addMethod('GET', new apigateway.LambdaIntegration(overlaysHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    overlaysResource.addMethod('POST', new apigateway.LambdaIntegration(overlaysHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const overlayIdResource = overlaysResource.addResource('{overlayId}');
+    overlayIdResource.addMethod('GET', new apigateway.LambdaIntegration(overlaysHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    overlayIdResource.addMethod('PUT', new apigateway.LambdaIntegration(overlaysHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    overlayIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(overlaysHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const sessionsResource = this.api.root.addResource('sessions');
+    sessionsResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    sessionsResource.addMethod('POST', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const sessionIdResource = sessionsResource.addResource('{sessionId}');
+    sessionIdResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const submissionsResource = this.api.root.addResource('submissions');
+    submissionsResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    submissionsResource.addMethod('POST', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const submissionIdResource = submissionsResource.addResource('{submissionId}');
+    submissionIdResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // CloudFormation Outputs
+    new cdk.CfnOutput(this, 'ApiEndpoint', {
+      value: this.api.url,
+      description: 'API Gateway endpoint URL',
+      exportName: 'OverlayApiEndpoint',
+    });
+
+    new cdk.CfnOutput(this, 'ApiId', {
+      value: this.api.restApiId,
+      description: 'API Gateway REST API ID',
+      exportName: 'OverlayApiId',
+    });
+
+    // Tags
+    cdk.Tags.of(this).add('Environment', environmentName);
+    cdk.Tags.of(this).add('Project', 'Overlay');
+    cdk.Tags.of(this).add('Stack', 'Compute');
+  }
+}

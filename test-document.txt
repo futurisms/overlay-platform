@@ -1,0 +1,10 @@
+Overlay Platform Test Document
+Created at: 2026-01-19T17:54:28.064Z
+
+This is a test document to verify S3 bucket functionality.
+The Overlay Platform is successfully deployed and operational!
+
+Test details:
+- Bucket: overlay-documents-975050116849
+- Region: eu-west-1
+- Document ID: test-1768845268065
