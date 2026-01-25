@@ -9,6 +9,8 @@
     "@aws-sdk/client-secrets-manager": "^3.971.0",
     "@aws-sdk/client-s3": "^3.971.0",
     "@aws-sdk/s3-request-presigner": "^3.971.0",
+    "mammoth": "^1.6.0",
+    "pdf-parse": "^1.1.1",
     "pg": "^8.17.1"
   }
 }

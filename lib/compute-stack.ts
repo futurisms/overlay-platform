@@ -250,6 +250,9 @@ export class ComputeStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
+    // Import State Machine ARN from Orchestration Stack
+    const stateMachineArn = cdk.Fn.importValue('OverlayStateMachineArn');
+
     // Submissions Handler
     const submissionsHandler = new lambda.Function(this, 'SubmissionsHandler', {
       functionName: 'overlay-api-submissions',
@@ -262,7 +265,10 @@ export class ComputeStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [lambdaSG],
       layers: [commonLayer],
-      environment: commonEnvironment,
+      environment: {
+        ...commonEnvironment,
+        WORKFLOW_STATE_MACHINE_ARN: stateMachineArn,
+      },
       description: 'Handles document submission uploads and processing',
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
@@ -323,6 +329,12 @@ export class ComputeStack extends cdk.Stack {
     allLambdas.forEach(fn => {
       props.documentBucket.grantReadWrite(fn);
     });
+
+    // Grant submissions handler permission to start Step Functions executions
+    submissionsHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['states:StartExecution'],
+      resources: [stateMachineArn],
+    }));
 
     // Grant Bedrock access to AI functions
     const bedrockPolicy = new iam.PolicyStatement({
@@ -433,8 +445,44 @@ export class ComputeStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /sessions/available
+    const sessionsAvailableResource = sessionsResource.addResource('available');
+    sessionsAvailableResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     const sessionIdResource = sessionsResource.addResource('{sessionId}');
     sessionIdResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    sessionIdResource.addMethod('PUT', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    sessionIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /sessions/{sessionId}/submissions
+    const sessionSubmissionsResource = sessionIdResource.addResource('submissions');
+    sessionSubmissionsResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /sessions/{sessionId}/report
+    const sessionReportResource = sessionIdResource.addResource('report');
+    sessionReportResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /sessions/{sessionId}/export
+    const sessionExportResource = sessionIdResource.addResource('export');
+    sessionExportResource.addMethod('GET', new apigateway.LambdaIntegration(sessionsHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
@@ -451,6 +499,35 @@ export class ComputeStack extends cdk.Stack {
 
     const submissionIdResource = submissionsResource.addResource('{submissionId}');
     submissionIdResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    submissionIdResource.addMethod('PUT', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    submissionIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /submissions/{submissionId}/feedback
+    const submissionFeedbackResource = submissionIdResource.addResource('feedback');
+    submissionFeedbackResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /submissions/{submissionId}/download
+    const submissionDownloadResource = submissionIdResource.addResource('download');
+    submissionDownloadResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /submissions/{submissionId}/analysis
+    const submissionAnalysisResource = submissionIdResource.addResource('analysis');
+    submissionAnalysisResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

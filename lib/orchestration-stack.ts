@@ -71,6 +71,7 @@ export class OrchestrationStack extends cdk.Stack {
       retryOnServiceExceptions: true,
       payload: stepfunctions.TaskInput.fromObject({
         documentId: stepfunctions.JsonPath.stringAt('$.documentId'),
+        submissionId: stepfunctions.JsonPath.stringAt('$.submissionId'),
         s3Key: stepfunctions.JsonPath.stringAt('$.s3Key'),
         s3Bucket: stepfunctions.JsonPath.stringAt('$.s3Bucket'),
         overlayId: stepfunctions.JsonPath.stringAt('$.overlayId'),
@@ -256,6 +257,7 @@ export class OrchestrationStack extends cdk.Stack {
             // Start Step Functions execution
             const input = {
               documentId,
+              submissionId: documentId, // Pass submissionId (same as documentId)
               s3Bucket: bucket,
               s3Key: key,
               overlayId,

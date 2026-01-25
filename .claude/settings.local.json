@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aws stepfunctions list-executions:*)"
+      "Bash(aws stepfunctions list-executions:*)",
+      "Bash(node scripts/comprehensive-api-test.js:*)",
+      "Bash(tee:*)"
     ]
   }
 }
