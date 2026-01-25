@@ -1,0 +1,639 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Loader2,
+  ArrowLeft,
+  Upload,
+  FileText,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Layers,
+  Users,
+  Type,
+} from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { getCurrentUser } from "@/lib/auth";
+
+interface Submission {
+  submission_id: string;
+  document_name: string;
+  status: string;
+  ai_analysis_status: string;
+  submitted_at: string;
+  submitted_by_name: string;
+  overall_score: number | null;
+}
+
+interface Overlay {
+  overlay_id: string;
+  name: string;
+  description: string;
+  document_type: string;
+  document_purpose?: string;
+  when_used?: string;
+  process_context?: string;
+  target_audience?: string;
+  criteria?: any[];
+}
+
+export default function SessionPage() {
+  const router = useRouter();
+  const params = useParams();
+  const sessionId = params?.id as string;
+
+  const [session, setSession] = useState<any>(null);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [pastedText, setPastedText] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check authentication
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      router.push("/login");
+      return;
+    }
+
+    if (sessionId) {
+      loadSessionData();
+    }
+  }, [sessionId, router]);
+
+  const loadSessionData = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Load session details and submissions in parallel
+      const [sessionResult, submissionsResult] = await Promise.all([
+        apiClient.getSession(sessionId),
+        apiClient.getSessionSubmissions(sessionId),
+      ]);
+
+      if (sessionResult.error) {
+        setError(sessionResult.error);
+      } else if (sessionResult.data) {
+        setSession(sessionResult.data);
+
+        // Load overlay details if we have an overlay_id
+        if (sessionResult.data.overlay_id) {
+          const overlayResult = await apiClient.getOverlay(sessionResult.data.overlay_id);
+          if (overlayResult.data) {
+            setOverlay(overlayResult.data);
+          }
+        }
+      }
+
+      if (submissionsResult.data) {
+        setSubmissions(submissionsResult.data.submissions || []);
+      }
+    } catch (err) {
+      setError("Failed to load session data");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+      setUploadError(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile || !session) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Read file as base64
+      const fileContent = await readFileAsBase64(uploadFile);
+
+      const result = await apiClient.createSubmission({
+        session_id: sessionId,
+        overlay_id: session.overlay_id,
+        document_name: uploadFile.name,
+        document_content: fileContent,
+        file_size: uploadFile.size,
+      });
+
+      if (result.error) {
+        setUploadError(result.error);
+      } else if (result.data?.submission_id) {
+        // Success - show message and provide options
+        setUploadFile(null);
+        await loadSessionData();
+
+        // Show success with option to view
+        const viewNow = confirm(
+          `✅ Document "${uploadFile.name}" uploaded successfully!\n\n` +
+          `Your document is now being analyzed by our AI agents.\n\n` +
+          `Click OK to view the submission details, or Cancel to stay here.`
+        );
+
+        if (viewNow) {
+          router.push(`/submission/${result.data.submission_id}`);
+        }
+      }
+    } catch (err) {
+      setUploadError("Failed to upload document");
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePasteSubmit = async () => {
+    if (!pastedText.trim() || !session) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Convert text to base64
+      const textContent = btoa(pastedText);
+      const textSizeBytes = new Blob([pastedText]).size;
+
+      // Check size limit (10MB)
+      const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+      if (textSizeBytes > maxSizeBytes) {
+        setUploadError(`Text is too large (${(textSizeBytes / (1024 * 1024)).toFixed(2)}MB). Maximum size is 10MB.`);
+        setIsUploading(false);
+        return;
+      }
+
+      const result = await apiClient.createSubmission({
+        session_id: sessionId,
+        overlay_id: session.overlay_id,
+        document_name: "pasted-text.txt",
+        document_content: textContent,
+        file_size: textSizeBytes,
+        is_pasted_text: true, // Flag to indicate this is pasted text
+      });
+
+      if (result.error) {
+        setUploadError(result.error);
+      } else if (result.data?.submission_id) {
+        // Success - clear text and reload
+        setPastedText("");
+        await loadSessionData();
+
+        // Show success with option to view
+        const viewNow = confirm(
+          `✅ Text submitted successfully!\n\n` +
+          `Your content is now being analyzed by our AI agents.\n\n` +
+          `Click OK to view the submission details, or Cancel to stay here.`
+        );
+
+        if (viewNow) {
+          router.push(`/submission/${result.data.submission_id}`);
+        }
+      }
+    } catch (err) {
+      setUploadError("Failed to submit text");
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix (e.g., "data:text/plain;base64,")
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case "in_progress":
+        return <Clock className="h-4 w-4 text-yellow-600" />;
+      case "failed":
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <Clock className="h-4 w-4 text-slate-400" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "default";
+      case "in_progress":
+        return "secondary";
+      case "failed":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const handleSubmissionClick = (submissionId: string) => {
+    router.push(`/submission/${submissionId}`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-slate-600" />
+          <p className="text-slate-600 dark:text-slate-400">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="container mx-auto p-6 max-w-7xl">
+        {/* Header */}
+        <div className="mb-8">
+          <Button variant="ghost" onClick={() => router.push("/dashboard")} className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+
+          {session && (
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-2">
+                  {session.name}
+                </h1>
+                <p className="text-slate-600 dark:text-slate-400 mb-4">
+                  {session.description || "No description"}
+                </p>
+                <Badge variant={getStatusColor(session.status)}>{session.status}</Badge>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Document Context Section */}
+        {session && overlay && (overlay.document_purpose || overlay.when_used || overlay.process_context || overlay.target_audience) && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Document Context</CardTitle>
+              <CardDescription>
+                Understanding the evaluation context for "{session.overlay_name}" documents
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {overlay.document_purpose && (
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Document Purpose
+                  </h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{overlay.document_purpose}</p>
+                </div>
+              )}
+              {overlay.when_used && (
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    When to Use
+                  </h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{overlay.when_used}</p>
+                </div>
+              )}
+              {overlay.process_context && (
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    Process Context
+                  </h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{overlay.process_context}</p>
+                </div>
+              )}
+              {overlay.target_audience && (
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Target Audience
+                  </h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{overlay.target_audience}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Evaluation Criteria Section */}
+        {session && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Evaluation Criteria
+              </CardTitle>
+              <CardDescription>
+                Your document will be evaluated against the "{session.overlay_name || 'overlay'}" criteria
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {overlay && overlay.criteria && overlay.criteria.length > 0 ? (
+                <div className="space-y-4">
+                  {overlay.criteria.map((criterion: any, index: number) => (
+                    <div
+                      key={criterion.criterion_id || index}
+                      className="border border-slate-200 dark:border-slate-700 rounded-lg p-4"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
+                            {criterion.name}
+                          </h4>
+                          {criterion.category && (
+                            <Badge variant="outline" className="mt-1">
+                              {criterion.category}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                            Weight: {criterion.weight}%
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-500">
+                            Max Score: {criterion.max_score}
+                          </div>
+                        </div>
+                      </div>
+                      {criterion.description && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                          {criterion.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                  <p className="text-slate-600 dark:text-slate-400 mb-2">
+                    Evaluation criteria for this session
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-500">
+                    Documents will be analyzed by AI agents across multiple dimensions including structure, content quality, grammar, and compliance
+                  </p>
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-left max-w-2xl mx-auto">
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                      <h5 className="font-semibold text-sm mb-2">Structure Validation</h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Verifies document format, completeness, and adherence to templates
+                      </p>
+                    </div>
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                      <h5 className="font-semibold text-sm mb-2">Content Analysis</h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Evaluates content quality, clarity, and completeness
+                      </p>
+                    </div>
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                      <h5 className="font-semibold text-sm mb-2">Grammar Check</h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Identifies spelling, grammar, and writing quality issues
+                      </p>
+                    </div>
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                      <h5 className="font-semibold text-sm mb-2">Compliance Review</h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Checks for regulatory compliance and risk factors
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Upload/Paste Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Submit Document
+            </CardTitle>
+            <CardDescription>Upload a file or paste text for AI analysis in this session</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {uploadError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{uploadError}</AlertDescription>
+              </Alert>
+            )}
+
+            <Tabs defaultValue="upload" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="upload" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload File
+                </TabsTrigger>
+                <TabsTrigger value="paste" className="flex items-center gap-2">
+                  <Type className="h-4 w-4" />
+                  Paste Text
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="upload" className="space-y-4">
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+                  <input
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-upload"
+                    accept=".txt,.pdf,.docx,.doc"
+                    disabled={isUploading}
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                    <p className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      {uploadFile ? uploadFile.name : "Click to upload or drag and drop"}
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      PDF, DOCX, DOC, or TXT (max 10MB)
+                    </p>
+                  </label>
+                </div>
+
+                {uploadFile && (
+                  <div className="flex items-center gap-4">
+                    <Button onClick={handleUpload} disabled={isUploading} className="flex-1">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload Document
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setUploadFile(null)}
+                      disabled={isUploading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="paste" className="space-y-4">
+                <div className="space-y-2">
+                  <Textarea
+                    placeholder="Paste your document text here..."
+                    value={pastedText}
+                    onChange={(e) => setPastedText(e.target.value)}
+                    className="min-h-[300px] font-mono text-sm"
+                    disabled={isUploading}
+                  />
+                  <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+                    <span>
+                      {pastedText.length.toLocaleString()} characters
+                      {pastedText.length > 0 && ` (${(new Blob([pastedText]).size / 1024).toFixed(2)} KB)`}
+                    </span>
+                    <span className="text-xs">
+                      Maximum size: 10MB
+                    </span>
+                  </div>
+                </div>
+
+                {pastedText.trim().length > 0 && (
+                  <div className="flex items-center gap-4">
+                    <Button onClick={handlePasteSubmit} disabled={isUploading} className="flex-1">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Submit Text
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setPastedText("")}
+                      disabled={isUploading}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Submissions List */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Submissions ({submissions.length})
+                </CardTitle>
+                <CardDescription>Documents submitted to this session</CardDescription>
+              </div>
+              <Button onClick={loadSessionData} variant="outline" size="sm">
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {submissions.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                <p className="text-slate-600 dark:text-slate-400 mb-2">No submissions yet</p>
+                <p className="text-sm text-slate-500 dark:text-slate-500">
+                  Upload a document to get started
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {submissions.map((submission) => (
+                  <div
+                    key={submission.submission_id}
+                    className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:border-blue-500 transition-colors cursor-pointer"
+                    onClick={() => handleSubmissionClick(submission.submission_id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold text-lg">{submission.document_name}</h4>
+                          <Badge variant={getStatusColor(submission.ai_analysis_status)}>
+                            {submission.ai_analysis_status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                          Submitted by {submission.submitted_by_name} on{" "}
+                          {new Date(submission.submitted_at).toLocaleString()}
+                        </p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(submission.ai_analysis_status)}
+                            <span className="text-slate-600 dark:text-slate-400">
+                              Status: {submission.status}
+                            </span>
+                          </div>
+                          {submission.overall_score !== null && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                Score: {submission.overall_score}/100
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

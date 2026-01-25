@@ -1,5 +1,33 @@
 # Overlay Platform - Implementation Status
 
+## 🚀 What's New in v1.1 (January 25, 2026)
+
+### New Features:
+✅ **Paste Text Submission** - Users can now paste text directly instead of uploading files
+  - Tabbed interface: "Upload File" and "Paste Text" options
+  - Real-time character counter with size display
+  - 10MB size limit with visual feedback
+  - Same AI workflow as file uploads
+  - Text stored in S3 for consistent architecture
+  - Documentation: [PASTE_TEXT_FEATURE.md](PASTE_TEXT_FEATURE.md)
+
+### Bug Fixes:
+✅ **Feedback Display Issue Resolved** - Two-stage fix for submission feedback not displaying
+  - Fixed table mismatch: Changed from `ai_agent_results` to `feedback_reports`
+  - Fixed SQL column names: `criterion_id` → `criteria_id`
+  - Removed non-existent column references
+  - Verified working for both file uploads and pasted text
+  - Documentation: [FEEDBACK_DISPLAY_FIX.md](FEEDBACK_DISPLAY_FIX.md), [SQL_COLUMN_FIX.md](SQL_COLUMN_FIX.md)
+
+### System Status:
+- 🟢 **File Uploads** (PDF, DOCX, DOC, TXT): Fully operational
+- 🟢 **Paste Text Submissions**: Fully operational
+- 🟢 **AI Analysis Workflow**: 6 agents processing successfully
+- 🟢 **Feedback Display**: Scores, strengths, weaknesses, recommendations showing correctly
+- 🟢 **End-to-End Flow**: Complete workflow verified ✅
+
+---
+
 ## Current Implementation Status
 
 ### Phase 1: AI Analysis Workflow - ✅ COMPLETE
@@ -93,7 +121,10 @@ All 6 AI agent Lambda functions are implemented and deployed with context-aware 
 3. **Session Detail Page** ([frontend/app/session/[id]/page.tsx](frontend/app/session/[id]/page.tsx))
    - Session information with metadata
    - **Evaluation Criteria section** (shows overlay criteria before upload)
-   - Document upload with base64 encoding
+   - **Tabbed submission interface** (Jan 25, 2026):
+     - "Upload File" tab - Document upload with base64 encoding
+     - "Paste Text" tab - Direct text paste with character counter (max 10MB)
+   - Real-time character and size counter for pasted text
    - Submissions list with status monitoring
    - Integration with overlay API
 
@@ -197,11 +228,13 @@ All 6 AI agent Lambda functions are implemented and deployed with context-aware 
    - Upload documents to sessions
 
 3. **Document Upload & Processing**:
-   - Upload document with base64 encoding
-   - Store in S3
-   - Create submission record
-   - Trigger Step Functions AI workflow (manual trigger for now)
-   - Monitor AI analysis status
+   - **Two submission methods** (Jan 25, 2026):
+     - Upload document file (PDF, DOCX, DOC, TXT) with base64 encoding
+     - Paste text directly into textarea (max 10MB) with real-time character counter
+   - Store in S3 (both files and pasted text)
+   - Create submission record with appropriate content type
+   - Automatically trigger Step Functions AI workflow
+   - Monitor AI analysis status with real-time updates
 
 4. **AI Analysis & Feedback**:
    - 6 AI agents process documents
@@ -341,7 +374,47 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 - Feedback tailored to document purpose and audience
 - Better alignment with business processes
 
-### 5. Authentication Flow
+### 5. Paste Text Submission (NEW - Jan 25, 2026)
+**Feature**: Users can paste text directly instead of uploading a file
+
+**Implementation**:
+- Session detail page has tabs: "Upload File" and "Paste Text"
+- Paste Text tab includes:
+  - Large textarea (300px min-height) with monospace font
+  - Real-time character counter and file size display (KB)
+  - 10MB size limit indicator
+  - Submit button (appears when text entered)
+  - Clear button to reset
+
+**Backend Handling**:
+- Frontend sends `is_pasted_text: true` flag with submission
+- Text converted to base64 (same as file uploads)
+- Uploaded to S3 with content type "text/plain"
+- Same S3 key pattern: `submissions/{userId}/{timestamp}-pasted-text.txt`
+- Database record created with content_type = "text/plain"
+- Step Functions workflow triggered automatically
+- AI agents fetch from S3 using same `getDocumentFromS3()` function
+
+**Design Rationale**:
+- **Consistent architecture**: Pasted text stored in S3 like files (not database)
+- **No special handling**: AI agents treat pasted text identically to files
+- **Scalability**: S3 handles large text storage, not PostgreSQL
+- **Audit trail**: Full S3 and database audit trail maintained
+- **Recoverability**: Text can be retrieved from S3 anytime
+
+**Benefits**:
+- Faster workflow (no file creation needed)
+- Quick testing of evaluation criteria
+- Easy collaboration (copy/paste from emails, docs)
+- No local file management required
+
+**Files Modified**:
+- [frontend/app/session/[id]/page.tsx](frontend/app/session/[id]/page.tsx) - Added tabs, textarea, character counter
+- [lambda/functions/api/submissions/index.js](lambda/functions/api/submissions/index.js) - Added `is_pasted_text` handling, content type detection
+
+**Documentation**: See [PASTE_TEXT_FEATURE.md](PASTE_TEXT_FEATURE.md) for complete implementation details
+
+### 6. Authentication Flow
 **Method**: Cognito JWT tokens via proxy
 
 **Flow**:
@@ -352,7 +425,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 5. Token stored in localStorage
 6. All API calls include Authorization header
 
-### 6. API Client Architecture
+### 7. API Client Architecture
 **Location**: [frontend/lib/api-client.ts](frontend/lib/api-client.ts)
 
 **Design Pattern**: Centralized API client class with typed methods
@@ -391,16 +464,32 @@ if (result.error) {
 
 ## Known Issues & Solutions
 
-### ✅ RESOLVED: Schema Errors in Feedback Endpoints
-**Issue**: 3 endpoints were querying `feedback_reports` table (user comments) instead of `ai_agent_results` (AI feedback)
+### ✅ RESOLVED: Feedback Display Issue (January 25, 2026)
+**Issue**: Completed submissions not displaying feedback scores and analysis in frontend
 
-**Fixed**:
-- GET /submissions/{id}/feedback ✅
-- GET /submissions/{id}/download ✅
-- GET /sessions/{id}/report ✅
-- GET /sessions/{id}/export ✅
+**Root Causes** (Two separate issues):
+1. **Table Mismatch**: Endpoint was querying `ai_agent_results` table, but scoring agent saves to `feedback_reports` table
+2. **SQL Column Name Error**: Query used `er.criterion_id` but database has `er.criteria_id`
 
-All now query `ai_agent_results` with JSONB parsing for scores, strengths, weaknesses.
+**Fixes** (Deployed in two stages):
+1. **First Fix (22:34:50 UTC)**: Changed from `ai_agent_results` to `feedback_reports` table
+2. **Second Fix (23:03:52 UTC)**: Corrected SQL column names (`criterion_id` → `criteria_id`)
+
+**Details**:
+- Scoring agent saves feedback to `feedback_reports.content` as JSON string
+- Endpoint now queries correct table with `report_type = 'comment'` filter
+- Parses JSON content to extract overall_score, strengths, weaknesses, recommendations
+- Fixed column references in both SELECT and JOIN clauses
+- Removed non-existent `er.feedback` column reference
+
+**Verification**:
+- ✅ File uploads: Score 84/100 with complete feedback
+- ✅ Pasted text: Score 86/100 with complete feedback
+- ✅ Both submission types working correctly
+
+**Documentation**:
+- [FEEDBACK_DISPLAY_FIX.md](FEEDBACK_DISPLAY_FIX.md) - Table mismatch fix
+- [SQL_COLUMN_FIX.md](SQL_COLUMN_FIX.md) - Column name fix
 
 ### ✅ RESOLVED: CORS Blocking Browser Requests
 **Issue**: Browser blocked all API requests due to missing CORS headers
