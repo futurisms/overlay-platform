@@ -1,0 +1,33 @@
+{
+  "documentId": "99b2f2d3-21d2-4217-9108-e672a794d731",
+  "submissionId": "99b2f2d3-21d2-4217-9108-e672a794d731",
+  "s3Key": "submissions/e2c51414-40b1-701b-493d-a6179aadad96/1769364215788-ChironAI question 9.docx",
+  "s3Bucket": "overlay-docs-975050116849",
+  "overlayId": "9e370f15-acf7-4556-92a8-b335abfb220e",
+  "structureValidation": {
+    "score": 85,
+    "isCompliant": true,
+    "issues": [],
+    "feedback": "Test"
+  },
+  "contentAnalysis": {
+    "score": 90,
+    "completeness": 95,
+    "clarity": 85,
+    "feedback": "Test"
+  },
+  "grammarCheck": {
+    "score": 88,
+    "errors": 0,
+    "warnings": 2,
+    "feedback": "Test"
+  },
+  "orchestration": {
+    "averageScore": 88,
+    "summary": "Test summary"
+  },
+  "clarification": {
+    "questions": [],
+    "clarificationsNeeded": 0
+  }
+}

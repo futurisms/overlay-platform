@@ -1,0 +1,15 @@
+{
+  "httpMethod": "GET",
+  "path": "/submissions/99b2f2d3-21d2-4217-9108-e672a794d731/feedback",
+  "pathParameters": {
+    "id": "99b2f2d3-21d2-4217-9108-e672a794d731",
+    "submissionId": "99b2f2d3-21d2-4217-9108-e672a794d731"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "e2c51414-40b1-701b-493d-a6179aadad96"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "httpMethod": "PUT",
+  "path": "/submissions/abc7ea98-83cd-47bb-a470-6accb2eb4968",
+  "pathParameters": {
+    "id": "abc7ea98-83cd-47bb-a470-6accb2eb4968"
+  },
+  "body": "{\"status\": \"submitted\", \"ai_analysis_status\": \"pending\"}",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "e2c51414-40b1-701b-493d-a6179aadad96"
+      }
+    }
+  }
+}

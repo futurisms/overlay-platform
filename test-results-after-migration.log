@@ -1,0 +1,214 @@
+
+
+══════════════════════════════════════════════════════════════════════
+  🧪 COMPREHENSIVE API TEST SUITE
+  Overlay Platform - All 8 CRUD Handlers
+══════════════════════════════════════════════════════════════════════
+
+  API URL: https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production
+  Test User: admin@example.com
+  Date: 2026-01-20T21:37:59.609Z
+
+🔐 Getting Authentication Token...
+   ✅ Token obtained: eyJraWQiOiJ2YmFFMWNuOHd2YXFIOH...
+
+
+📁 Testing Organizations Handler
+==================================================
+
+  Testing: GET /organizations - List all organizations... ✅ PASS (1087ms)
+
+  Testing: POST /organizations - Create new organization... ✅ PASS (115ms)
+     Created organization ID: b9fdf87e-12ab-4c8d-9135-98fc622aa5d6
+
+  Testing: GET /organizations/{id} - Get organization b9fdf87e-12ab-4c8d-9135-98fc622aa5d6... ✅ PASS (138ms)
+
+  Testing: PUT /organizations/{id} - Update organization... ❌ FAIL (89ms)
+     Error: Expected status 200 but got 400
+
+  Testing: GET /organizations/{id} - Test 404 for non-existent org... ❌ FAIL (117ms)
+     Error: Expected status 404 but got 200
+
+
+📋 Testing Overlays Handler
+==================================================
+
+  Testing: GET /overlays - List all overlays... ✅ PASS (1163ms)
+
+  Testing: POST /overlays - Create overlay with evaluation criteria... ❌ FAIL (142ms)
+     Error: Expected status 201 but got 500
+
+  Testing: GET /overlays/{id} - Test 404 for non-existent overlay... ❌ FAIL (104ms)
+     Error: Expected status 404 but got 200
+
+
+👥 Testing Sessions Handler
+==================================================
+
+  ⚠️  Warning: No overlay created, using existing overlay
+
+  Testing: GET /sessions - List user sessions... ✅ PASS (1028ms)
+
+  Testing: GET /sessions/available - List available sessions... ✅ PASS (109ms)
+
+  Testing: POST /sessions - Create new session... ❌ FAIL (128ms)
+     Error: Expected status 201 but got 500
+
+
+📄 Testing Submissions Handler
+==================================================
+
+  Testing: GET /submissions - List user submissions... ✅ PASS (1379ms)
+
+  Testing: POST /submissions - Create submission with document upload... ❌ FAIL (224ms)
+     Error: Expected status 201 but got 500
+
+
+👤 Testing Users Handler
+==================================================
+
+  Testing: GET /users - List organization users... ❌ FAIL (1092ms)
+     Error: Expected status 200 but got 500
+
+  Testing: POST /users - Create new user... ❌ FAIL (112ms)
+     Error: Expected status 201 but got 400
+
+
+✉️  Testing Invitations Handler
+==================================================
+
+  Testing: GET /invitations - List user invitations... ✅ PASS (1007ms)
+
+  ⏭️  Skipped: POST /sessions/{id}/invite - Missing session or user
+
+  ℹ️  Note: Accept/decline tests require switching user context
+
+
+💬 Testing Answers Handler
+==================================================
+
+  ⏭️  Skipped: Answers tests - No submission available
+
+
+📊 Testing Analytics Handler
+==================================================
+
+  Testing: GET /analytics/overview - Get dashboard metrics... ✅ PASS (1032ms)
+     Total submissions: 0
+     Total sessions: 0
+     Total users: 0
+
+  Testing: GET /analytics/submissions - Get submission statistics... ✅ PASS (138ms)
+     Daily stats records: 0
+
+  Testing: GET /analytics/users - Get user activity metrics... ❌ FAIL (102ms)
+     Error: Expected status 200 but got 500
+
+
+
+══════════════════════════════════════════════════════════════════════
+  📈 TEST SUMMARY
+══════════════════════════════════════════════════════════════════════
+
+  Total Tests: 22
+  ✅ Passed: 10
+  ❌ Failed: 9
+  ⏭️  Skipped: 3
+
+  Total Duration: 10.62s
+  Average Test Time: 559ms
+
+
+  ❌ FAILED TESTS:
+     - PUT /organizations/{id} - Update organization
+       Error: Expected status 200 but got 400
+     - GET /organizations/{id} - Test 404 for non-existent org
+       Error: Expected status 404 but got 200
+     - POST /overlays - Create overlay with evaluation criteria
+       Error: Expected status 201 but got 500
+     - GET /overlays/{id} - Test 404 for non-existent overlay
+       Error: Expected status 404 but got 200
+     - POST /sessions - Create new session
+       Error: Expected status 201 but got 500
+     - POST /submissions - Create submission with document upload
+       Error: Expected status 201 but got 500
+     - GET /users - List organization users
+       Error: Expected status 200 but got 500
+     - POST /users - Create new user
+       Error: Expected status 201 but got 400
+     - GET /analytics/users - Get user activity metrics
+       Error: Expected status 200 but got 500
+
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+
+  ⚠️  9 test(s) failed. Review errors above.
+

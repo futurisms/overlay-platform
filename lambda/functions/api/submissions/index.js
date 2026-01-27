@@ -4,7 +4,8 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { SFNClient, StartExecutionCommand } = require('@aws-sdk/client-sfn');
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
@@ -27,6 +28,12 @@ exports.handler = async (event) => {
     }
     if (path.includes('/feedback')) {
       return await handleGetFeedback(dbClient, pathParameters, userId);
+    }
+    if (path.includes('/download-appendix')) {
+      return await handleDownloadAppendix(dbClient, pathParameters, userId);
+    }
+    if (path.includes('/download-file')) {
+      return await handleDownloadFile(dbClient, pathParameters, userId);
     }
     if (path.includes('/download')) {
       return await handleDownload(dbClient, pathParameters, userId);
@@ -62,6 +69,7 @@ async function handleGet(dbClient, pathParameters, userId) {
       SELECT s.submission_id, s.overlay_id, s.session_id, s.document_name,
              s.file_size, s.content_type, s.status, s.ai_analysis_status,
              s.submitted_at, s.ai_analysis_completed_at, s.submitted_by,
+             s.s3_key, s.s3_bucket, s.appendix_files,
              u.first_name || ' ' || u.last_name as submitted_by_name,
              o.name as overlay_name
       FROM document_submissions s
@@ -75,7 +83,11 @@ async function handleGet(dbClient, pathParameters, userId) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
     }
 
-    return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
+    // Ensure appendix_files is always an array (backward compatibility)
+    const submission = result.rows[0];
+    submission.appendix_files = submission.appendix_files || [];
+
+    return { statusCode: 200, body: JSON.stringify(submission) };
   } else {
     // List user's submissions
     const query = `
@@ -96,13 +108,32 @@ async function handleGet(dbClient, pathParameters, userId) {
 }
 
 async function handleCreate(dbClient, requestBody, userId) {
-  const { overlay_id, session_id, document_name, document_content, is_pasted_text } = JSON.parse(requestBody);
+  const { overlay_id, session_id, document_name, document_content, is_pasted_text, appendices } = JSON.parse(requestBody);
 
   if (!overlay_id || !document_name || !document_content) {
     return { statusCode: 400, body: JSON.stringify({ error: 'overlay_id, document_name, and document_content required' }) };
   }
 
-  // Upload document to S3
+  // Validate appendices structure if provided (frontend sends base64 content)
+  const appendicesArray = appendices || [];
+  if (appendicesArray.length > 0) {
+    for (const appendix of appendicesArray) {
+      if (!appendix.file_name || !appendix.file_content || !appendix.file_size || typeof appendix.upload_order !== 'number') {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid appendix structure. Required: file_name, file_content (base64), file_size, upload_order' }) };
+      }
+      // Validate PDF format
+      if (!appendix.file_name.toLowerCase().endsWith('.pdf')) {
+        return { statusCode: 400, body: JSON.stringify({ error: `Appendix "${appendix.file_name}" must be a PDF file` }) };
+      }
+      // Validate max size (5MB)
+      if (appendix.file_size > 5 * 1024 * 1024) {
+        return { statusCode: 400, body: JSON.stringify({ error: `Appendix "${appendix.file_name}" exceeds 5MB limit` }) };
+      }
+    }
+    console.log(`Creating submission with ${appendicesArray.length} appendices`);
+  }
+
+  // Upload main document to S3
   const timestamp = Date.now();
   const s3Key = `submissions/${userId}/${timestamp}-${document_name}`;
   const s3Bucket = process.env.DOCUMENT_BUCKET || process.env.DOCUMENTS_BUCKET;
@@ -139,12 +170,53 @@ async function handleCreate(dbClient, requestBody, userId) {
     };
   }
 
+  // Upload appendices to S3 if provided
+  const appendixMetadata = [];
+  if (appendicesArray.length > 0) {
+    console.log(`Uploading ${appendicesArray.length} appendices to S3...`);
+
+    // Create a submission ID folder for appendices (use timestamp-based unique ID)
+    const submissionFolder = `submissions/${userId}/${timestamp}`;
+
+    for (const appendix of appendicesArray) {
+      const appendixS3Key = `${submissionFolder}/appendix-${appendix.upload_order}.pdf`;
+      const appendixBuffer = Buffer.from(appendix.file_content, 'base64');
+
+      try {
+        const appendixPutCommand = new PutObjectCommand({
+          Bucket: s3Bucket,
+          Key: appendixS3Key,
+          Body: appendixBuffer,
+          ContentType: 'application/pdf',
+        });
+        await s3Client.send(appendixPutCommand);
+
+        // Store metadata for database
+        appendixMetadata.push({
+          file_name: appendix.file_name,
+          s3_key: appendixS3Key,
+          file_size: appendix.file_size,
+          upload_order: appendix.upload_order,
+        });
+
+        console.log(`Uploaded appendix ${appendix.upload_order}: ${appendixS3Key}`);
+      } catch (error) {
+        console.error(`Failed to upload appendix ${appendix.upload_order}:`, error);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ error: `Failed to upload appendix "${appendix.file_name}"`, details: error.message }),
+        };
+      }
+    }
+    console.log(`All ${appendixMetadata.length} appendices uploaded successfully`);
+  }
+
   // Create submission record
   const submissionQuery = `
     INSERT INTO document_submissions
-    (session_id, overlay_id, document_name, s3_bucket, s3_key, file_size, content_type, submitted_by, status, ai_analysis_status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'submitted', 'pending')
-    RETURNING submission_id, document_name, status, ai_analysis_status, submitted_at
+    (session_id, overlay_id, document_name, s3_bucket, s3_key, file_size, content_type, submitted_by, status, ai_analysis_status, appendix_files)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'submitted', 'pending', $9)
+    RETURNING submission_id, document_name, status, ai_analysis_status, submitted_at, appendix_files
   `;
   const submissionResult = await dbClient.query(submissionQuery, [
     session_id || null,
@@ -155,6 +227,7 @@ async function handleCreate(dbClient, requestBody, userId) {
     fileSize,
     contentType,
     userId,
+    JSON.stringify(appendixMetadata),
   ]);
 
   const submission = submissionResult.rows[0];
@@ -398,6 +471,107 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
   };
 
   return { statusCode: 200, body: JSON.stringify(completeFeedback) };
+}
+
+async function handleDownloadFile(dbClient, pathParameters, userId) {
+  const submissionId = pathParameters?.submissionId || pathParameters?.id;
+
+  if (!submissionId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+  }
+
+  // Get submission S3 details
+  const query = `
+    SELECT s3_bucket, s3_key, document_name
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const result = await dbClient.query(query, [submissionId]);
+
+  if (result.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const { s3_bucket, s3_key, document_name } = result.rows[0];
+
+  // Generate presigned URL (valid for 15 minutes)
+  const command = new GetObjectCommand({
+    Bucket: s3_bucket,
+    Key: s3_key,
+    ResponseContentDisposition: `attachment; filename="${document_name}"`,
+  });
+
+  try {
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        download_url: presignedUrl,
+        file_name: document_name,
+        expires_in: 900
+      })
+    };
+  } catch (error) {
+    console.error('Error generating presigned URL:', error);
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to generate download URL' }) };
+  }
+}
+
+async function handleDownloadAppendix(dbClient, pathParameters, userId) {
+  const submissionId = pathParameters?.submissionId || pathParameters?.id;
+  const appendixOrder = pathParameters?.order;
+
+  if (!submissionId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+  }
+
+  if (!appendixOrder) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Appendix order required' }) };
+  }
+
+  // Get submission S3 bucket and appendix files
+  const query = `
+    SELECT s3_bucket, appendix_files
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const result = await dbClient.query(query, [submissionId]);
+
+  if (result.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const { s3_bucket, appendix_files } = result.rows[0];
+  const appendices = appendix_files || [];
+
+  // Find appendix by order
+  const appendix = appendices.find(a => a.upload_order === parseInt(appendixOrder));
+
+  if (!appendix) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Appendix not found' }) };
+  }
+
+  // Generate presigned URL (valid for 15 minutes)
+  const command = new GetObjectCommand({
+    Bucket: s3_bucket,
+    Key: appendix.s3_key,
+    ResponseContentDisposition: `attachment; filename="${appendix.file_name}"`,
+  });
+
+  try {
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        download_url: presignedUrl,
+        file_name: appendix.file_name,
+        expires_in: 900
+      })
+    };
+  } catch (error) {
+    console.error('Error generating presigned URL:', error);
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to generate download URL' }) };
+  }
 }
 
 async function handleDownload(dbClient, pathParameters, userId) {

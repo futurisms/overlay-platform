@@ -1,0 +1,242 @@
+
+
+══════════════════════════════════════════════════════════════════════
+  🧪 COMPREHENSIVE API TEST SUITE
+  Overlay Platform - All 8 CRUD Handlers
+══════════════════════════════════════════════════════════════════════
+
+  API URL: https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production
+  Test User: admin@example.com
+  Date: 2026-01-20T21:56:19.429Z
+
+🔐 Getting Authentication Token...
+   ✅ Token obtained: eyJraWQiOiJ2YmFFMWNuOHd2YXFIOH...
+
+
+📁 Testing Organizations Handler
+==================================================
+
+  Testing: GET /organizations - List all organizations... ✅ PASS (1236ms)
+
+  Testing: POST /organizations - Create new organization... ✅ PASS (101ms)
+     Created organization ID: 38f92d5c-9879-4b3f-85f2-02524883a388
+
+  Testing: GET /organizations/{id} - Get organization 38f92d5c-9879-4b3f-85f2-02524883a388... ✅ PASS (104ms)
+
+  Testing: PUT /organizations/{id} - Update organization... ❌ FAIL (101ms)
+     Error: Expected status 200 but got 400
+
+  Testing: GET /organizations/{id} - Test 404 for non-existent org... ❌ FAIL (94ms)
+     Error: Expected status 404 but got 200
+
+
+📋 Testing Overlays Handler
+==================================================
+
+  Testing: GET /overlays - List all overlays... ✅ PASS (1021ms)
+
+  Testing: POST /overlays - Create overlay with evaluation criteria... ❌ FAIL (122ms)
+     Error: Expected status 201 but got 500
+
+  Testing: GET /overlays/{id} - Test 404 for non-existent overlay... ❌ FAIL (81ms)
+     Error: Expected status 404 but got 200
+
+
+👥 Testing Sessions Handler
+==================================================
+
+  ⚠️  Warning: No overlay created, using existing overlay
+
+  Testing: GET /sessions - List user sessions... ✅ PASS (1088ms)
+
+  Testing: GET /sessions/available - List available sessions... ✅ PASS (105ms)
+
+  Testing: POST /sessions - Create new session... ✅ PASS (119ms)
+     Created session ID: 26e70123-412c-485f-bc23-498de624741e
+
+  Testing: GET /sessions/{id} - Get session with participants... ✅ PASS (99ms)
+
+  Testing: PUT /sessions/{id} - Update session... ❌ FAIL (105ms)
+     Error: Expected status 200 but got 400
+
+  Testing: GET /sessions/{id}/submissions - Get session submissions... ✅ PASS (82ms)
+
+
+📄 Testing Submissions Handler
+==================================================
+
+  Testing: GET /submissions - List user submissions... ✅ PASS (1304ms)
+
+  Testing: POST /submissions - Create submission with document upload... ✅ PASS (223ms)
+     Created submission ID: b627a7fe-6f71-4afd-ab6c-b1e382a00e17
+     AI analysis status: pending
+
+  Testing: GET /submissions/{id} - Get submission details... ✅ PASS (108ms)
+
+  Testing: GET /submissions/{id}/analysis - Get AI analysis results... ❌ FAIL (94ms)
+     Error: Expected status 200 but got 404
+
+  Testing: PUT /submissions/{id} - Update submission... ❌ FAIL (81ms)
+     Error: Expected status 200 but got 400
+
+
+👤 Testing Users Handler
+==================================================
+
+  Testing: GET /users - List organization users... ✅ PASS (1024ms)
+
+  Testing: POST /users - Create new user... ✅ PASS (178ms)
+     Created user ID: 1c9d1d49-ea16-48c6-bb76-abda99039446
+
+  Testing: GET /users/{id} - Get user profile... ✅ PASS (112ms)
+
+  Testing: PUT /users/{id} - Update user profile... ❌ FAIL (91ms)
+     Error: Expected status 200 but got 400
+
+  Testing: PUT /users/{id} - Test invalid role validation... ✅ PASS (79ms)
+
+
+✉️  Testing Invitations Handler
+==================================================
+
+  Testing: GET /invitations - List user invitations... ✅ PASS (1063ms)
+
+  Testing: POST /sessions/{id}/invite - Invite user to session... ❌ FAIL (91ms)
+     Error: Expected status 201 but got 400
+
+  Testing: POST /sessions/{id}/invite - Test duplicate invitation error... ✅ PASS (96ms)
+
+  ℹ️  Note: Accept/decline tests require switching user context
+
+
+💬 Testing Answers Handler
+==================================================
+
+  Testing: GET /submissions/{id}/answers - Get clarification questions and answers... ❌ FAIL (1019ms)
+     Error: Expected status 200 but got 400
+
+
+📊 Testing Analytics Handler
+==================================================
+
+  Testing: GET /analytics/overview - Get dashboard metrics... ✅ PASS (1014ms)
+     Total submissions: 16
+     Total sessions: 1
+     Total users: 6
+
+  Testing: GET /analytics/submissions - Get submission statistics... ✅ PASS (108ms)
+     Daily stats records: 2
+
+  Testing: GET /analytics/users - Get user activity metrics... ✅ PASS (110ms)
+     User stats records: 6
+
+
+
+══════════════════════════════════════════════════════════════════════
+  📈 TEST SUMMARY
+══════════════════════════════════════════════════════════════════════
+
+  Total Tests: 31
+  ✅ Passed: 21
+  ❌ Failed: 10
+  ⏭️  Skipped: 0
+
+  Total Duration: 13.11s
+  Average Test Time: 423ms
+
+
+  ❌ FAILED TESTS:
+     - PUT /organizations/{id} - Update organization
+       Error: Expected status 200 but got 400
+     - GET /organizations/{id} - Test 404 for non-existent org
+       Error: Expected status 404 but got 200
+     - POST /overlays - Create overlay with evaluation criteria
+       Error: Expected status 201 but got 500
+     - GET /overlays/{id} - Test 404 for non-existent overlay
+       Error: Expected status 404 but got 200
+     - PUT /sessions/{id} - Update session
+       Error: Expected status 200 but got 400
+     - GET /submissions/{id}/analysis - Get AI analysis results
+       Error: Expected status 200 but got 404
+     - PUT /submissions/{id} - Update submission
+       Error: Expected status 200 but got 400
+     - PUT /users/{id} - Update user profile
+       Error: Expected status 200 but got 400
+     - POST /sessions/{id}/invite - Invite user to session
+       Error: Expected status 201 but got 400
+     - GET /submissions/{id}/answers - Get clarification questions and answers
+       Error: Expected status 200 but got 400
+
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+═
+
+  ⚠️  10 test(s) failed. Review errors above.
+

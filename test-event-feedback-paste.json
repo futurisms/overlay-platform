@@ -1,0 +1,15 @@
+{
+  "httpMethod": "GET",
+  "path": "/submissions/af427e55-bbd8-426b-a393-9461b08d5616/feedback",
+  "pathParameters": {
+    "id": "af427e55-bbd8-426b-a393-9461b08d5616"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "e2c51414-40b1-701b-493d-a6179aadad96",
+        "cognito:username": "admin@example.com"
+      }
+    }
+  }
+}

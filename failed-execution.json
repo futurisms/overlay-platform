@@ -1,0 +1,17 @@
+{
+    "executionArn": "arn:aws:states:eu-west-1:975050116849:execution:overlay-document-analysis:b6be0555-5545-4aa2-bce3-a9797267a4f8",
+    "stateMachineArn": "arn:aws:states:eu-west-1:975050116849:stateMachine:overlay-document-analysis",
+    "name": "b6be0555-5545-4aa2-bce3-a9797267a4f8",
+    "status": "FAILED",
+    "startDate": "2026-01-25T21:56:57.992000+00:00",
+    "stopDate": "2026-01-25T21:56:58.045000+00:00",
+    "input": "{\"submissionId\":\"0e787d49-b8d2-478a-b4a8-b129070819a5\",\"s3Bucket\":\"overlay-docs-975050116849\",\"s3Key\":\"submissions/e2c51414-40b1-701b-493d-a6179aadad96/1769378217752-pasted-text.txt\",\"overlayId\":\"9e370f15-acf7-4556-92a8-b335abfb220e\"}",
+    "inputDetails": {
+        "included": true
+    },
+    "traceHeader": "Root=1-697691a8-5effc8f90c85a9981ffbea49;Parent=2589daff86b69cd7;Sampled=1",
+    "error": "States.Runtime",
+    "cause": "An error occurred while executing the state 'StructureValidation' (entered at the event id #2). The JSONPath '$.documentId' specified for the field 'documentId.$' could not be found in the input '{\"submissionId\":\"0e787d49-b8d2-478a-b4a8-b129070819a5\",\"s3Bucket\":\"overlay-docs-975050116849\",\"s3Key\":\"submissions/e2c51414-40b1-701b-493d-a6179aadad96/1769378217752-pasted-text.txt\",\"overlayId\":\"9e370f15-acf7-4556-92a8-b335abfb220e\"}'",
+    "redriveCount": 0,
+    "redriveStatus": "REDRIVABLE"
+}

@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Loader2,
   ArrowLeft,
@@ -20,6 +22,9 @@ import {
   Layers,
   Users,
   Type,
+  CheckCircle,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -58,8 +63,14 @@ export default function SessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState<string>("");
+  const [pastedTitle, setPastedTitle] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successSubmissionId, setSuccessSubmissionId] = useState<string | null>(null);
+  const [successDocumentName, setSuccessDocumentName] = useState<string>("");
+  const [appendixFiles, setAppendixFiles] = useState<File[]>([]);
+  const [appendixError, setAppendixError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check authentication
@@ -118,6 +129,45 @@ export default function SessionPage() {
     }
   };
 
+  const handleAppendixSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+    const errors: string[] = [];
+
+    // Validate each file
+    for (const file of newFiles) {
+      // Check if PDF
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        errors.push(`"${file.name}" is not a PDF file`);
+        continue;
+      }
+      // Check size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        errors.push(`"${file.name}" exceeds 5MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
+        continue;
+      }
+    }
+
+    if (errors.length > 0) {
+      setAppendixError(errors.join('. '));
+      return;
+    }
+
+    // Add valid files to the list
+    setAppendixFiles(prev => [...prev, ...newFiles]);
+    setAppendixError(null);
+
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const removeAppendix = (index: number) => {
+    setAppendixFiles(prev => prev.filter((_, i) => i !== index));
+    setAppendixError(null);
+  };
+
   const handleUpload = async () => {
     if (!uploadFile || !session) return;
 
@@ -125,8 +175,22 @@ export default function SessionPage() {
     setUploadError(null);
 
     try {
-      // Read file as base64
+      // Read main file as base64
       const fileContent = await readFileAsBase64(uploadFile);
+
+      // Read appendices as base64
+      const appendicesData = [];
+      for (let i = 0; i < appendixFiles.length; i++) {
+        const appendixContent = await readFileAsBase64(appendixFiles[i]);
+        appendicesData.push({
+          file_name: appendixFiles[i].name,
+          file_content: appendixContent,
+          file_size: appendixFiles[i].size,
+          upload_order: i + 1,
+        });
+      }
+
+      const documentNameWithAppendices = uploadFile.name + (appendixFiles.length > 0 ? ` (+${appendixFiles.length} appendix${appendixFiles.length > 1 ? 'es' : ''})` : '');
 
       const result = await apiClient.createSubmission({
         session_id: sessionId,
@@ -134,25 +198,19 @@ export default function SessionPage() {
         document_name: uploadFile.name,
         document_content: fileContent,
         file_size: uploadFile.size,
+        appendices: appendicesData.length > 0 ? appendicesData : undefined,
       });
 
       if (result.error) {
         setUploadError(result.error);
       } else if (result.data?.submission_id) {
-        // Success - show message and provide options
+        // Success - show dialog
         setUploadFile(null);
+        setAppendixFiles([]);
+        setSuccessSubmissionId(result.data.submission_id);
+        setSuccessDocumentName(documentNameWithAppendices);
+        setShowSuccessDialog(true);
         await loadSessionData();
-
-        // Show success with option to view
-        const viewNow = confirm(
-          `✅ Document "${uploadFile.name}" uploaded successfully!\n\n` +
-          `Your document is now being analyzed by our AI agents.\n\n` +
-          `Click OK to view the submission details, or Cancel to stay here.`
-        );
-
-        if (viewNow) {
-          router.push(`/submission/${result.data.submission_id}`);
-        }
       }
     } catch (err) {
       setUploadError("Failed to upload document");
@@ -181,32 +239,45 @@ export default function SessionPage() {
         return;
       }
 
+      // Generate display name for pasted text
+      const displayName = pastedTitle.trim() ||
+        `Pasted Content - ${new Date().toLocaleDateString()}`;
+
+      // Read appendices as base64
+      const appendicesData = [];
+      for (let i = 0; i < appendixFiles.length; i++) {
+        const appendixContent = await readFileAsBase64(appendixFiles[i]);
+        appendicesData.push({
+          file_name: appendixFiles[i].name,
+          file_content: appendixContent,
+          file_size: appendixFiles[i].size,
+          upload_order: i + 1,
+        });
+      }
+
+      const documentNameWithAppendices = displayName + (appendixFiles.length > 0 ? ` (+${appendixFiles.length} appendix${appendixFiles.length > 1 ? 'es' : ''})` : '');
+
       const result = await apiClient.createSubmission({
         session_id: sessionId,
         overlay_id: session.overlay_id,
-        document_name: "pasted-text.txt",
+        document_name: displayName,
         document_content: textContent,
         file_size: textSizeBytes,
         is_pasted_text: true, // Flag to indicate this is pasted text
+        appendices: appendicesData.length > 0 ? appendicesData : undefined,
       });
 
       if (result.error) {
         setUploadError(result.error);
       } else if (result.data?.submission_id) {
-        // Success - clear text and reload
+        // Success - clear text and show dialog
         setPastedText("");
+        setPastedTitle("");
+        setAppendixFiles([]);
+        setSuccessSubmissionId(result.data.submission_id);
+        setSuccessDocumentName(documentNameWithAppendices);
+        setShowSuccessDialog(true);
         await loadSessionData();
-
-        // Show success with option to view
-        const viewNow = confirm(
-          `✅ Text submitted successfully!\n\n` +
-          `Your content is now being analyzed by our AI agents.\n\n` +
-          `Click OK to view the submission details, or Cancel to stay here.`
-        );
-
-        if (viewNow) {
-          router.push(`/submission/${result.data.submission_id}`);
-        }
       }
     } catch (err) {
       setUploadError("Failed to submit text");
@@ -470,24 +541,98 @@ export default function SessionPage() {
               </TabsList>
 
               <TabsContent value="upload" className="space-y-4">
-                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
-                  <input
-                    type="file"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="file-upload"
-                    accept=".txt,.pdf,.docx,.doc"
-                    disabled={isUploading}
-                  />
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
-                    <p className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      {uploadFile ? uploadFile.name : "Click to upload or drag and drop"}
-                    </p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      PDF, DOCX, DOC, or TXT (max 10MB)
-                    </p>
+                <div>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+                    Main Document
                   </label>
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+                    <input
+                      type="file"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="file-upload"
+                      accept=".txt,.pdf,.docx,.doc"
+                      disabled={isUploading}
+                    />
+                    <label htmlFor="file-upload" className="cursor-pointer">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                      <p className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {uploadFile ? uploadFile.name : "Click to upload or drag and drop"}
+                      </p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        PDF, DOCX, DOC, or TXT (max 10MB)
+                      </p>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Appendices Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Appendices (Optional)
+                    </label>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      PDF only, max 5MB each
+                    </span>
+                  </div>
+
+                  {appendixError && (
+                    <Alert variant="destructive" className="mb-3">
+                      <AlertDescription>{appendixError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 text-center hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+                    <input
+                      type="file"
+                      onChange={handleAppendixSelect}
+                      className="hidden"
+                      id="appendix-upload"
+                      accept=".pdf"
+                      multiple
+                      disabled={isUploading}
+                    />
+                    <label htmlFor="appendix-upload" className="cursor-pointer">
+                      <Paperclip className="h-10 w-10 mx-auto mb-3 text-slate-400" />
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Add PDF appendices
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        e.g., Gantt charts, budgets, supporting documents
+                      </p>
+                    </label>
+                  </div>
+
+                  {/* Display selected appendices */}
+                  {appendixFiles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {appendixFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-lg"
+                        >
+                          <div className="flex items-center gap-2 flex-1">
+                            <Paperclip className="h-4 w-4 text-slate-500" />
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                              {file.name}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              ({(file.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAppendix(index)}
+                            disabled={isUploading}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {uploadFile && (
@@ -501,13 +646,16 @@ export default function SessionPage() {
                       ) : (
                         <>
                           <Upload className="mr-2 h-4 w-4" />
-                          Upload Document
+                          Upload Document{appendixFiles.length > 0 ? ` (+${appendixFiles.length} appendix${appendixFiles.length > 1 ? 'es' : ''})` : ''}
                         </>
                       )}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setUploadFile(null)}
+                      onClick={() => {
+                        setUploadFile(null);
+                        setAppendixFiles([]);
+                      }}
                       disabled={isUploading}
                     >
                       Cancel
@@ -517,22 +665,113 @@ export default function SessionPage() {
               </TabsContent>
 
               <TabsContent value="paste" className="space-y-4">
-                <div className="space-y-2">
-                  <Textarea
-                    placeholder="Paste your document text here..."
-                    value={pastedText}
-                    onChange={(e) => setPastedText(e.target.value)}
-                    className="min-h-[300px] font-mono text-sm"
-                    disabled={isUploading}
-                  />
-                  <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-                    <span>
-                      {pastedText.length.toLocaleString()} characters
-                      {pastedText.length > 0 && ` (${(new Blob([pastedText]).size / 1024).toFixed(2)} KB)`}
-                    </span>
-                    <span className="text-xs">
-                      Maximum size: 10MB
-                    </span>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label htmlFor="paste-title" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Document Title (Optional)
+                    </label>
+                    <Input
+                      id="paste-title"
+                      placeholder="e.g., Contract Review Draft, Meeting Notes..."
+                      value={pastedTitle}
+                      onChange={(e) => setPastedTitle(e.target.value)}
+                      disabled={isUploading}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      If not provided, will default to "Pasted Content - {new Date().toLocaleDateString()}"
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="paste-text" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Document Content
+                    </label>
+                    <Textarea
+                      id="paste-text"
+                      placeholder="Paste your document text here..."
+                      value={pastedText}
+                      onChange={(e) => setPastedText(e.target.value)}
+                      className="min-h-[300px] font-mono text-sm"
+                      disabled={isUploading}
+                    />
+                    <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+                      <span>
+                        {pastedText.length.toLocaleString()} characters
+                        {pastedText.length > 0 && ` (${(new Blob([pastedText]).size / 1024).toFixed(2)} KB)`}
+                      </span>
+                      <span className="text-xs">
+                        Maximum size: 10MB
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Appendices Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Appendices (Optional)
+                      </label>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        PDF only, max 5MB each
+                      </span>
+                    </div>
+
+                    {appendixError && (
+                      <Alert variant="destructive" className="mb-3">
+                        <AlertDescription>{appendixError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 text-center hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+                      <input
+                        type="file"
+                        onChange={handleAppendixSelect}
+                        className="hidden"
+                        id="paste-appendix-upload"
+                        accept=".pdf"
+                        multiple
+                        disabled={isUploading}
+                      />
+                      <label htmlFor="paste-appendix-upload" className="cursor-pointer">
+                        <Paperclip className="h-10 w-10 mx-auto mb-3 text-slate-400" />
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Add PDF appendices
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          e.g., Gantt charts, budgets, supporting documents
+                        </p>
+                      </label>
+                    </div>
+
+                    {/* Display selected appendices */}
+                    {appendixFiles.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {appendixFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-lg"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <Paperclip className="h-4 w-4 text-slate-500" />
+                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                {file.name}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                ({(file.size / 1024).toFixed(0)} KB)
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeAppendix(index)}
+                              disabled={isUploading}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -547,13 +786,17 @@ export default function SessionPage() {
                       ) : (
                         <>
                           <Upload className="mr-2 h-4 w-4" />
-                          Submit Text
+                          Submit Text{appendixFiles.length > 0 ? ` (+${appendixFiles.length} appendix${appendixFiles.length > 1 ? 'es' : ''})` : ''}
                         </>
                       )}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setPastedText("")}
+                      onClick={() => {
+                        setPastedText("");
+                        setPastedTitle("");
+                        setAppendixFiles([]);
+                      }}
                       disabled={isUploading}
                     >
                       Clear
@@ -565,6 +808,47 @@ export default function SessionPage() {
           </CardContent>
         </Card>
 
+        {/* Success Dialog */}
+        <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+                  <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+                <DialogTitle className="text-xl">Document Submitted Successfully!</DialogTitle>
+              </div>
+              <DialogDescription className="text-base pt-2">
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  "{successDocumentName}"
+                </span>{" "}
+                is now being analyzed by our AI agents. This typically takes 2-3 minutes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowSuccessDialog(false)}
+                className="flex-1"
+              >
+                Stay Here
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowSuccessDialog(false);
+                  if (successSubmissionId) {
+                    router.push(`/submission/${successSubmissionId}`);
+                  }
+                }}
+                className="flex-1"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                View Analysis
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Submissions List */}
         <Card>
           <CardHeader>
@@ -572,9 +856,9 @@ export default function SessionPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Submissions ({submissions.length})
+                  Analyses ({submissions.length})
                 </CardTitle>
-                <CardDescription>Documents submitted to this session</CardDescription>
+                <CardDescription>Documents submitted to this analysis session</CardDescription>
               </div>
               <Button onClick={loadSessionData} variant="outline" size="sm">
                 Refresh
@@ -585,7 +869,7 @@ export default function SessionPage() {
             {submissions.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-600 dark:text-slate-400 mb-2">No submissions yet</p>
+                <p className="text-slate-600 dark:text-slate-400 mb-2">No analyses yet</p>
                 <p className="text-sm text-slate-500 dark:text-slate-500">
                   Upload a document to get started
                 </p>

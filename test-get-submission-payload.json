@@ -1,0 +1,14 @@
+{
+  "httpMethod": "GET",
+  "path": "/submissions/abc7ea98-83cd-47bb-a470-6accb2eb4968",
+  "pathParameters": {
+    "id": "abc7ea98-83cd-47bb-a470-6accb2eb4968"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "f7524164-8440-70ff-0ec3-b0a64503d45b"
+      }
+    }
+  }
+}

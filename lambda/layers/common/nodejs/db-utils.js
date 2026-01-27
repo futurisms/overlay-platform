@@ -354,6 +354,76 @@ async function getDocumentFromS3(s3Bucket, s3Key) {
 }
 
 /**
+ * Get document with appendices from S3 and concatenate all text
+ * Supports multi-document submissions (main + appendices)
+ * @param {Object} dbClient - Database client
+ * @param {string} submissionId - Submission ID
+ * @param {string} s3Bucket - S3 bucket name
+ * @param {string} s3Key - Main document S3 key
+ * @returns {Promise<string>} - Concatenated text from main + all appendices
+ */
+async function getDocumentWithAppendices(dbClient, submissionId, s3Bucket, s3Key) {
+  console.log(`[Multi-Doc] Extracting text for submission: ${submissionId}`);
+
+  // 1. Extract text from main document
+  console.log(`[Multi-Doc] Extracting main document: ${s3Key}`);
+  let mainText = await getDocumentFromS3(s3Bucket, s3Key);
+  console.log(`[Multi-Doc] Main document extracted: ${mainText.length} characters`);
+
+  // 2. Get appendix files from database
+  const appendixQuery = `
+    SELECT appendix_files
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const result = await dbClient.query(appendixQuery, [submissionId]);
+
+  if (!result.rows || result.rows.length === 0) {
+    console.log(`[Multi-Doc] No submission found for ID: ${submissionId}`);
+    return mainText;
+  }
+
+  const appendixFiles = result.rows[0].appendix_files || [];
+
+  if (appendixFiles.length === 0) {
+    console.log(`[Multi-Doc] No appendices found, returning main document only`);
+    return mainText;
+  }
+
+  console.log(`[Multi-Doc] Found ${appendixFiles.length} appendices to process`);
+
+  // 3. Extract text from each appendix IN ORDER
+  let combinedText = mainText;
+
+  for (const appendix of appendixFiles) {
+    const { file_name, s3_key, upload_order } = appendix;
+
+    console.log(`[Multi-Doc] Extracting appendix ${upload_order}: ${file_name} (${s3_key})`);
+
+    try {
+      const appendixText = await getDocumentFromS3(s3Bucket, s3_key);
+      console.log(`[Multi-Doc] Appendix ${upload_order} extracted: ${appendixText.length} characters`);
+
+      // 4. Add separator and appendix content
+      combinedText += `\n\n---APPENDIX ${upload_order}: ${file_name}---\n\n`;
+      combinedText += appendixText;
+
+    } catch (error) {
+      console.error(`[Multi-Doc] Error extracting appendix ${upload_order}:`, error);
+      // Continue with other appendices even if one fails
+      combinedText += `\n\n---APPENDIX ${upload_order}: ${file_name} (EXTRACTION FAILED)---\n\n`;
+    }
+  }
+
+  console.log(`[Multi-Doc] Text concatenation complete:`);
+  console.log(`[Multi-Doc]   Main document: ${mainText.length} chars`);
+  console.log(`[Multi-Doc]   Appendices: ${appendixFiles.length} files`);
+  console.log(`[Multi-Doc]   Total combined: ${combinedText.length} chars`);
+
+  return combinedText;
+}
+
+/**
  * Save clarification questions
  * Note: clarification_questions table doesn't exist in schema
  * Storing as feedback_reports with type 'suggestion' instead
@@ -420,5 +490,6 @@ module.exports = {
   saveFeedbackReport,
   saveCriterionScores,
   getDocumentFromS3,
+  getDocumentWithAppendices,
   saveClarificationQuestions,
 };
