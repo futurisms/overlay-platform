@@ -802,7 +802,54 @@ Before deploying ANY change, verify these integration points:
 
 After deployment, verify these integration points immediately:
 
-### Quick Smoke Test (5 minutes)
+### Automated Integration Tests ⭐ **RECOMMENDED**
+
+**Run the automated test suite** to verify all 9 bug fixes:
+
+```bash
+# Option 1: Node.js (works everywhere)
+export AUTH_TOKEN='your-token-here'
+node scripts/integration-test.js
+
+# Option 2: Bash (Linux/Mac/Git Bash)
+export AUTH_TOKEN='your-token-here'
+bash scripts/integration-test.sh
+
+# Option 3: Windows Batch (auto-detects bash)
+set AUTH_TOKEN=your-token-here
+scripts\integration-test.bat
+```
+
+**The automated test suite verifies all 9 critical integration points**:
+- ✅ Test 1: Score Calculation Accuracy (list vs detail match)
+- ✅ Test 2: Submissions List Visibility (array present and accurate)
+- ✅ Test 3: Criteria Persistence (save and verify in DB)
+- ✅ Test 4: Field Name Consistency (overall_score vs avg_score)
+- ✅ Test 5: Status Filtering (only active sessions)
+- ✅ Test 6: JSONB Path Safety (COALESCE fallback)
+- ✅ Test 7: Complete Response Payloads (all required fields)
+- ✅ Test 8: PostgreSQL Type Casting (::jsonb cast working)
+- ✅ Test 9: Status Field Presence (is_active field returned)
+
+**Expected output**:
+```
+╔════════════════════════════════════════════════════════════════╗
+║        Integration Test Suite - v1.2 Bug Verification         ║
+╚════════════════════════════════════════════════════════════════╝
+
+✓ PASS: Test 1 - Scores match (List: 84, Detail: 84)
+✓ PASS: Test 2 - Submissions array present with correct count (1)
+...
+✓ ALL TESTS PASSED - Platform is stable
+
+Pass Rate: 100.0%
+```
+
+**If tests fail**, the script exits with code 1 and shows which tests failed.
+
+---
+
+### Manual Quick Smoke Test (5 minutes)
 ```bash
 # 1. Login
 curl -X POST https://.../cognito/login
