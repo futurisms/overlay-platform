@@ -2,6 +2,42 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Start (New Developers)
+
+1. **Clone and Install**:
+   ```bash
+   git clone <repo-url>
+   cd overlay-platform
+   npm install          # Install backend dependencies
+   cd frontend
+   npm install          # Install frontend dependencies
+   ```
+
+2. **Start Development**:
+   ```bash
+   # Terminal 1: Frontend
+   cd frontend
+   npm run dev          # Starts Next.js on port 3000
+
+   # Terminal 2: Proxy (REQUIRED)
+   cd frontend
+   node proxy-server.js # Starts CORS proxy on port 3001
+   ```
+
+3. **Test Login**:
+   - URL: http://localhost:3000/login
+   - Email: `admin@example.com`
+   - Password: `TestPassword123!`
+
+4. **First Commit**:
+   ```bash
+   git add <specific-files>
+   git commit -m "Your message
+
+   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+   git push origin master
+   ```
+
 ## Project Overview
 
 Overlay Platform is an AI-powered document review and evaluation system with a Next.js frontend and AWS Lambda backend. The system processes documents through a 6-agent AI workflow that provides structured feedback based on configurable evaluation criteria.
