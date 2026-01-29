@@ -293,6 +293,23 @@ export class ComputeStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
+    // Notes Handler
+    const notesHandler = new lambda.Function(this, 'NotesHandler', {
+      functionName: 'overlay-api-notes',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/notes'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Handles user notes CRUD operations',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
     // ==========================================================================
     // IAM PERMISSIONS
     // ==========================================================================
@@ -311,6 +328,7 @@ export class ComputeStack extends cdk.Stack {
       sessionsHandler,
       submissionsHandler,
       queryResultsHandler,
+      notesHandler,
     ];
 
     // Grant all Lambdas access to secrets
@@ -528,6 +546,30 @@ export class ComputeStack extends cdk.Stack {
     // /submissions/{submissionId}/analysis
     const submissionAnalysisResource = submissionIdResource.addResource('analysis');
     submissionAnalysisResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const notesResource = this.api.root.addResource('notes');
+    notesResource.addMethod('GET', new apigateway.LambdaIntegration(notesHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    notesResource.addMethod('POST', new apigateway.LambdaIntegration(notesHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const noteIdResource = notesResource.addResource('{noteId}');
+    noteIdResource.addMethod('GET', new apigateway.LambdaIntegration(notesHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    noteIdResource.addMethod('PUT', new apigateway.LambdaIntegration(notesHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    noteIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(notesHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

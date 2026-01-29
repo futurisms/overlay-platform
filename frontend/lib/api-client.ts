@@ -125,6 +125,17 @@ class ApiClient {
     });
   }
 
+  async updateSession(sessionId: string, data: {
+    name?: string;
+    description?: string;
+    status?: string;
+  }) {
+    return this.request<any>(`/sessions/${sessionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Submissions endpoints
   async getSubmissions() {
     return this.request<{ submissions: any[]; total: number }>('/submissions');
@@ -252,6 +263,52 @@ class ApiClient {
     return this.request<any>(`/llm-config/${agentName}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Notes endpoints
+  async createNote(title: string, content: string, sessionId?: string) {
+    const body: any = { title, content };
+    if (sessionId) body.session_id = sessionId;
+
+    return this.request<{ note_id: string; created_at: string }>('/notes', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getNotes() {
+    return this.request<{ notes: Array<{
+      note_id: string;
+      title: string;
+      content_preview: string;
+      created_at: string;
+      session_id?: string;
+    }>; total: number }>('/notes');
+  }
+
+  async getNote(noteId: string) {
+    return this.request<{
+      note_id: string;
+      title: string;
+      content: string;
+      ai_summary?: string;
+      created_at: string;
+      updated_at: string;
+      session_id?: string;
+    }>(`/notes/${noteId}`);
+  }
+
+  async updateNote(noteId: string, data: { title?: string; content?: string; ai_summary?: string }) {
+    return this.request<{ note_id: string; updated_at: string }>(`/notes/${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteNote(noteId: string) {
+    return this.request<{ success: boolean; note_id: string }>(`/notes/${noteId}`, {
+      method: 'DELETE',
     });
   }
 }

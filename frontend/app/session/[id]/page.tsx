@@ -227,8 +227,11 @@ export default function SessionPage() {
     setUploadError(null);
 
     try {
-      // Convert text to base64
-      const textContent = btoa(pastedText);
+      // Convert text to base64 (UTF-8 safe encoding)
+      // Use TextEncoder for proper UTF-8 handling, then convert to base64
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(pastedText);
+      const textContent = btoa(String.fromCharCode(...uint8Array));
       const textSizeBytes = new Blob([pastedText]).size;
 
       // Check size limit (10MB)
@@ -822,9 +825,28 @@ export default function SessionPage() {
                 <span className="font-medium text-slate-900 dark:text-slate-100">
                   "{successDocumentName}"
                 </span>{" "}
-                is now being analyzed by our AI agents. This typically takes 2-3 minutes.
+                has been uploaded and submitted for analysis.
               </DialogDescription>
             </DialogHeader>
+
+            {/* Analysis in Progress Indicator */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+              <div className="flex items-start gap-3">
+                <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    AI Analysis In Progress
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Our 6 AI agents are analyzing your document. This typically takes <strong>1-2 minutes</strong>.
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    You can view real-time progress on the analysis page.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3 mt-4 pt-4 border-t">
               <Button
                 variant="outline"
@@ -843,7 +865,7 @@ export default function SessionPage() {
                 className="flex-1"
               >
                 <FileText className="mr-2 h-4 w-4" />
-                View Analysis
+                View Progress
               </Button>
             </div>
           </DialogContent>

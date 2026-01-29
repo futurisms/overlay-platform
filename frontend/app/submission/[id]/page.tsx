@@ -30,6 +30,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
+import { TextSelectionHandler } from "@/components/TextSelectionHandler";
 
 interface Question {
   question_id: string;
@@ -253,8 +254,9 @@ export default function SubmissionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto p-6 max-w-7xl">
+    <TextSelectionHandler>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="container mx-auto p-6 max-w-7xl">
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" onClick={() => router.back()} className="mb-4">
@@ -367,34 +369,51 @@ export default function SubmissionPage() {
 
         {/* AI Analysis Status */}
         {submission.ai_analysis_status !== "completed" && (
-          <Alert className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>
-              {submission.ai_analysis_status === "in_progress"
-                ? "Analysis in Progress"
-                : submission.ai_analysis_status === "pending"
-                ? "Analysis Pending"
-                : "Analysis Status"}
-            </AlertTitle>
-            <AlertDescription>
-              {submission.ai_analysis_status === "in_progress" ? (
-                <div className="space-y-2">
-                  <p>AI agents are analyzing your document. This may take a few minutes.</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    ⏱️ Auto-refreshing every 10 seconds...
-                  </p>
-                </div>
-              ) : submission.ai_analysis_status === "pending" ? (
-                <div className="space-y-2">
-                  <p>Your document has been uploaded successfully and is waiting for AI analysis to begin.</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    ⏱️ Auto-refreshing every 10 seconds... Click the Refresh button above to check for updates manually.
-                  </p>
-                </div>
-              ) : (
-                <p>Analysis status: {submission.ai_analysis_status}</p>
-              )}
-            </AlertDescription>
+          <Alert className="mb-6 border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+            <div className="flex items-start gap-3">
+              <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <AlertTitle className="text-blue-900 dark:text-blue-100 mb-2">
+                  {submission.ai_analysis_status === "in_progress"
+                    ? "🤖 AI Analysis in Progress"
+                    : submission.ai_analysis_status === "pending"
+                    ? "⏳ Preparing Analysis"
+                    : "Analysis Status"}
+                </AlertTitle>
+                <AlertDescription>
+                  {submission.ai_analysis_status === "in_progress" ? (
+                    <div className="space-y-2">
+                      <p className="text-blue-800 dark:text-blue-200 font-medium">
+                        6 AI agents are analyzing your document. This typically takes <strong>1-2 minutes</strong>.
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse"></div>
+                          <span>Auto-refreshing every 10 seconds</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                        You can safely close this page. Analysis will continue in the background.
+                      </p>
+                    </div>
+                  ) : submission.ai_analysis_status === "pending" ? (
+                    <div className="space-y-2">
+                      <p className="text-blue-800 dark:text-blue-200">
+                        Your document is queued for AI analysis. Starting shortly...
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse"></div>
+                          <span>Auto-refreshing every 10 seconds</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p>Analysis status: {submission.ai_analysis_status}</p>
+                  )}
+                </AlertDescription>
+              </div>
+            </div>
           </Alert>
         )}
 
@@ -695,7 +714,8 @@ export default function SubmissionPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
+    </TextSelectionHandler>
   );
 }

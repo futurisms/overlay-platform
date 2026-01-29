@@ -1,0 +1,14 @@
+{
+  "httpMethod": "GET",
+  "path": "/notes/dda8ed70-de8f-4d3d-b41d-208c36ff4deb",
+  "pathParameters": {
+    "noteId": "dda8ed70-de8f-4d3d-b41d-208c36ff4deb"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "e2c51414-40b1-701b-493d-a6179aadad96"
+      }
+    }
+  }
+}

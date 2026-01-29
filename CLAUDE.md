@@ -1,896 +1,636 @@
-# Overlay Platform - Implementation Status
+# CLAUDE.md
 
-## 🚀 What's New in v1.4 (January 27, 2026)
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-### Multi-Document Upload with Appendices - PRODUCTION READY ✅
+## Project Overview
 
-This release enables users to submit a main document plus multiple PDF appendices (e.g., Gantt charts, budgets, supporting documents) in a single submission. The AI evaluates all documents together for comprehensive analysis.
+Overlay Platform is an AI-powered document review and evaluation system with a Next.js frontend and AWS Lambda backend. The system processes documents through a 6-agent AI workflow that provides structured feedback based on configurable evaluation criteria.
 
-#### Key Features:
-✅ **Multi-Document Upload**
-  - Main document (text/PDF/DOCX) + up to multiple PDF appendices
-  - Support for both "Upload File" and "Paste Text" tabs
-  - File validation: PDF only for appendices, 5MB max per file
-  - Visual file list with remove option
-  - Submit button shows appendix count
+**Current Version**: v1.5 (Complete Notes System with Database Persistence, Word Export, Full CRUD)
+**Release Date**: January 29, 2026
+**Status**: Production Ready
 
-✅ **Automatic Text Extraction & Concatenation**
-  - Backend utility: `getDocumentWithAppendices()`
-  - Format: `Main → ---APPENDIX 1: filename--- → Text1 → ---APPENDIX 2: filename--- → Text2`
-  - AI agents analyze combined content
-  - Improved evaluation accuracy with full context
+## Architecture
 
-✅ **Secure Download Functionality**
-  - S3 presigned URLs with 15-minute expiration
-  - Separate endpoints for main document and each appendix
-  - "Files Submitted" section shows all uploaded files
-  - Download buttons trigger secure file retrieval
+### Three-Tier Stack Structure
 
-✅ **Database Storage**
-  - New `appendix_files` JSONB column in `document_submissions`
-  - Metadata: `{file_name, s3_key, file_size, upload_order}`
-  - GIN index for efficient queries
-  - Migration: `005_add_appendix_support.sql`
+The project uses AWS CDK with **separate stacks** that must be deployed in order:
 
-✅ **Backward Compatible**
-  - Old submissions: `appendix_files = []` (empty array)
-  - No data migration needed for existing records
-  - Graceful handling of missing fields
+1. **StorageStack** - Database, VPC, S3, DynamoDB (deployed once, rarely changes)
+2. **AuthStack** - Cognito User Pool (deployed once, rarely changes)
+3. **ComputeStack** - 10 Lambda API handlers (deploy after handler changes)
+4. **OrchestrationStack** - Lambda Layer + 6 AI agents + Step Functions (deploy after AI agent changes)
 
-#### Technical Implementation:
-**Database:**
-- Added `appendix_files` JSONB column
-- Created migration + rollback scripts
-- GIN index: `idx_submissions_appendix_files`
+### Component Breakdown
 
-**Backend (5 Lambda functions modified):**
-- `submissions/index.js`: Upload + download endpoints
-- `db-utils.js`: `getDocumentWithAppendices()` utility
-- `structure-validator/index.js`: Uses concatenated text
-- `content-analyzer/index.js`: Analyzes full content
-- `grammar-checker/index.js`: Checks all documents
+**Frontend** (`frontend/`):
+- Next.js 16.1.4 with App Router
+- TypeScript + Tailwind CSS + shadcn/ui components
+- 8 pages: Dashboard, Session Detail, Submission Detail, Overlays Management, Login, Note Detail
+- Right sidebar with global notepad + saved notes library (v1.5 complete)
+- Text selection via right-click context menu to add to notes
+- Full CRUD for notes: Create, Read, Update, Delete
+- Word export functionality (.docx format)
+- Professional styled confirmation dialogs
+- API client with JWT authentication (28+ methods)
+- **Requires local proxy server** for CORS handling in development
 
-**Frontend (3 files modified):**
-- `api-client.ts`: `downloadSubmissionFile()`, `downloadAppendix()`
-- `session/[id]/page.tsx`: Appendix upload UI (both tabs)
-- `submission/[id]/page.tsx`: Files display + download buttons
+**Backend** (`lambda/functions/api/`):
+- 10 Lambda handlers (sessions, submissions, overlays, users, invitations, answers, analytics, llm-config, organizations, notes)
+- REST API via API Gateway: `https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production`
+- PostgreSQL Aurora Serverless v2 in private VPC
 
-#### Deployment Results:
-- Database Migration: ✅ Success (1s)
-- Backend (ComputeStack): ✅ Deployed (69s)
-- Backend (OrchestrationStack): ✅ Deployed (1s)
-- Frontend Build: ✅ Success (5s)
-- **Total Deployment Time**: ~2 minutes
+**AI Workflow** (`lambda/functions/step-functions/`):
+- 6 AI agents: structure-validator, content-analyzer, grammar-checker, clarification, scoring, orchestrator
+- Step Functions state machine coordinates agent execution
+- Agents receive concatenated text (main document + appendices with separators)
 
-#### Verification Status:
-- ✅ Database: appendix_files column present, metadata stored
-- ✅ S3 Storage: Files uploaded and accessible
-- ✅ API Endpoints: Presigned URLs generated correctly
-- ✅ Frontend UI: Both tabs functional, validation working
-- ✅ Downloads: Main + appendix downloads operational
-- ✅ Data Integrity: File sizes match (database ↔ S3)
-- ✅ Backward Compatibility: Old submissions work correctly
-- ✅ AI Processing: Combined content analyzed
-
-#### Impact:
-- **Time Saved**: 27 minutes per proposal (30 min manual combining → 3 min upload)
-- **Questions Enabled**: Proper testing of Q12-Q18 (require appendices)
-- **Evaluation Quality**: AI analyzes full context, not just main document
-- **User Experience**: Seamless multi-file upload
-
-#### Documentation:
-- [V1.4_IMPLEMENTATION_COMPLETE.md](V1.4_IMPLEMENTATION_COMPLETE.md) - Complete technical guide
-- [V1.4_DEPLOYMENT_STATUS.md](V1.4_DEPLOYMENT_STATUS.md) - Deployment tracking
-- [LESSONS_LEARNED_TESTING_AND_DEBUGGING.md](LESSONS_LEARNED_TESTING_AND_DEBUGGING.md) - Prevention system results
-
-**Platform Status**: ✅ PRODUCTION READY - All systems verified, feature operational
-
----
-
-## 🚀 What's New in v1.2 (January 26, 2026)
-
-### Critical Bug Fixes - 9 Issues Resolved ✅
-
-This release resolves 9 critical production bugs discovered after deployment, including score calculation errors, data visibility issues, and a breaking SQL error.
-
-#### 1. ✅ Criteria Not Saving (Overlays Handler)
-- **Issue**: Criterion showed success but didn't persist to database
-- **Fix**: Backend `handleUpdate` now processes criteria array with proper field mapping
-- **Impact**: Admins can now save evaluation criteria successfully
-
-#### 2. ✅ React Key Warning (Frontend)
-- **Issue**: Console warning about missing unique key prop
-- **Fix**: Added fallback key: `criterion_id || criteria_id`
-- **Impact**: Console warnings eliminated
-
-#### 3. ✅ Criteria Showing "Inactive" Status
-- **Issue**: All criteria displayed "Inactive" badge
-- **Fix**: Backend returns `is_active: true` for all criteria
-- **Impact**: UI shows correct "Active" status
-
-#### 4. ✅ Score Display Empty
-- **Issue**: "Score: /100" instead of "Score: 84/100"
-- **Fix**: Changed SQL alias from `avg_score` to `overall_score`
-- **Impact**: Scores display correctly in submission lists
-
-#### 5. ✅ CRITICAL: Score Calculation Wrong
-- **Issue**: List view (72/100) didn't match detail view (84/100)
-- **Root Cause**: List averaged criteria, bypassing Scoring Agent's weighted calculation
-- **Fix**: Query `feedback_reports` for Scoring Agent's final score
-- **Impact**: Scores now consistent across all views
-- **Documentation**: [CRITICAL_SCORE_FIX.md](CRITICAL_SCORE_FIX.md)
-
-#### 6. ✅ Submissions List Empty (JSONB Path Safety)
-- **Issue**: Session showed count but list was empty
-- **Fix**: Added COALESCE with fallback paths for different JSONB structures
-- **Impact**: Submissions list works with all JSONB formats
-
-#### 7. ✅ Archived Sessions on Dashboard
-- **Issue**: Dashboard showed archived sessions
-- **Fix**: Added `status = 'active'` filter to query
-- **Impact**: Dashboard shows only active sessions
-
-#### 8. ✅ Session Detail Not Loading Submissions
-- **Issue**: GET /sessions/{id} missing submissions array
-- **Fix**: Added submissions query to endpoint response
-- **Impact**: Session page shows all submissions with scores
-- **Documentation**: [SESSION_DETAIL_FIX.md](SESSION_DETAIL_FIX.md)
-
-#### 9. ✅ URGENT: SQL Operator Error
-- **Issue**: "operator does not exist: text -> unknown" - total outage
-- **Root Cause**: JSONB operators on TEXT column without cast
-- **Fix**: Added `::jsonb` cast to `content` column in queries
-- **Impact**: All session queries restored
-- **Documentation**: [SQL_OPERATOR_FIX_COMPLETE.md](SQL_OPERATOR_FIX_COMPLETE.md)
-
-### New Overlays Created
-- ✅ **Q9 Overlay** - Question 9 evaluation template (contract analysis)
-- ✅ **Q10 Overlay** - Question 10 evaluation template (patient engagement)
-- ✅ **Q11 Overlay** - Question 11 evaluation template (process improvement)
-
-### System Status:
-- 🟢 **Evaluation Criteria Management**: Fully operational
-- 🟢 **Score Display**: Consistent across all views (uses Scoring Agent's final score)
-- 🟢 **Session Management**: Complete data visibility (submissions, participants, scores)
-- 🟢 **Dashboard Filtering**: Shows only active sessions
-- 🟢 **All API Endpoints**: Working correctly with proper JSONB casting
-- 🟢 **Frontend**: No console warnings, all UI elements functional
-
-### Deployment Statistics:
-- **Files Modified**: 3 (sessions handler, overlays handler, frontend)
-- **Deployments**: 6 CDK deployments (~48s each)
-- **Total Session Time**: ~2 hours
-- **Documentation Pages**: 9 (including comprehensive testing checklist)
-
-**Platform Status**: ✅ PRODUCTION READY - All critical bugs resolved
-
----
-
-## 🚀 What's New in v1.1 (January 25, 2026)
-
-### New Features:
-✅ **Paste Text Submission** - Users can now paste text directly instead of uploading files
-  - Tabbed interface: "Upload File" and "Paste Text" options
-  - Real-time character counter with size display
-  - 10MB size limit with visual feedback
-  - Same AI workflow as file uploads
-  - Text stored in S3 for consistent architecture
-  - Documentation: [PASTE_TEXT_FEATURE.md](PASTE_TEXT_FEATURE.md)
-
-### Bug Fixes:
-✅ **Feedback Display Issue Resolved** - Two-stage fix for submission feedback not displaying
-  - Fixed table mismatch: Changed from `ai_agent_results` to `feedback_reports`
-  - Fixed SQL column names: `criterion_id` → `criteria_id`
-  - Removed non-existent column references
-  - Verified working for both file uploads and pasted text
-  - Documentation: [FEEDBACK_DISPLAY_FIX.md](FEEDBACK_DISPLAY_FIX.md), [SQL_COLUMN_FIX.md](SQL_COLUMN_FIX.md)
-
-### System Status:
-- 🟢 **File Uploads** (PDF, DOCX, DOC, TXT): Fully operational
-- 🟢 **Paste Text Submissions**: Fully operational
-- 🟢 **AI Analysis Workflow**: 6 agents processing successfully
-- 🟢 **Feedback Display**: Scores, strengths, weaknesses, recommendations showing correctly
-- 🟢 **End-to-End Flow**: Complete workflow verified ✅
-
----
-
-## Current Implementation Status
-
-### Phase 1: AI Analysis Workflow - ✅ COMPLETE
-All 6 AI agent Lambda functions are implemented and deployed with context-aware prompts:
-- **structure-validator** - Validates document structure against templates
-- **content-analyzer** - Analyzes content quality and completeness
-- **grammar-checker** - Checks grammar, spelling, and writing quality
-- **clarification** - Generates high-priority questions for unclear sections
-- **scoring** - Calculates weighted scores across evaluation criteria with **UUID validation** (Jan 25, 2026)
-- **orchestrator** - AWS Step Functions workflow coordinator
-
-**Context-Aware Analysis**: All agents receive document context (purpose, when used, process context, target audience)
-
-**Recent Fixes** (January 25, 2026):
-- ✅ **Scoring Lambda UUID Validation**: Fixed workflow failures when overlays have no evaluation criteria by validating criterion IDs before database insertion
-- ✅ **Step Functions Input Format**: Corrected to pass both `documentId` and `submissionId` for state machine compatibility
-- ✅ **Environment Variables**: Added `WORKFLOW_STATE_MACHINE_ARN` to submissions handler to trigger AI workflows
-- ✅ **IAM Permissions**: Granted Step Functions, Secrets Manager, S3, and DynamoDB access to submissions handler
-
-### Phase 2: Backend API - ✅ COMPLETE (9/9 handlers implemented)
-
-#### ✅ Completed Lambda Handlers:
-1. **organizations-handler** - Full CRUD for organizations
-   - Routes: GET/POST/PUT/DELETE /organizations and /organizations/{id}
-   - Status: Deployed and tested ✅
-
-2. **overlays-crud-handler** - Full CRUD for overlays with evaluation criteria
-   - Routes: GET/POST/PUT/DELETE /overlays and /overlays/{id}
-   - Status: Deployed and tested ✅
-
-3. **sessions-crud-handler** - Full CRUD for review sessions
-   - Routes: GET/POST/PUT/DELETE /sessions, GET /sessions/available, GET /sessions/{id}/submissions
-   - Additional: GET /sessions/{id}/report (analytics), GET /sessions/{id}/export (CSV)
-   - Status: Deployed, schema fixes applied ✅
-
-4. **submissions-crud-handler** - Document submission management
-   - Routes: GET/POST/PUT/DELETE /submissions
-   - Additional: GET /submissions/{id}/feedback, GET /submissions/{id}/download
-   - Status: Deployed, schema fixes applied ✅
-
-5. **users-handler** - User profile and management
-   - Routes: GET/POST/PUT/DELETE /users and /users/{id}
-   - Status: Deployed and tested ✅
-
-6. **invitations-handler** - Session invitation management
-   - Routes: POST /sessions/{id}/invite, GET /invitations, POST /invitations/{id}/accept
-   - Status: Deployed and tested ✅
-
-7. **answers-handler** - Clarification answer submission
-   - Routes: GET/POST /submissions/{id}/answers
-   - Status: Deployed and tested ✅
-
-8. **analytics-handler** - Platform analytics and reporting
-   - Routes: GET /analytics/overview, GET /analytics/submissions, GET /analytics/users
-   - Status: Deployed and tested ✅
-
-9. **llm-config-handler** - LLM agent configuration management (Admin only)
-   - Routes: GET /llm-config, GET /llm-config/{agentName}, PUT /llm-config/{agentName}
-   - Storage: DynamoDB (overlay-llm-config table)
-   - Status: Deployed and tested ✅
-
-### Phase 3: Infrastructure - ✅ COMPLETE
-- Aurora PostgreSQL Serverless v2 database
-- API Gateway REST API (wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production)
-- Cognito User Pool authentication
-- Step Functions AI workflow
-- S3 document storage
-- DynamoDB for LLM configuration
-- All 9 Lambda handlers deployed with VPC access
-- 39+ API endpoints operational
-
-### Phase 4: Frontend - ✅ COMPLETE
-
-**Location**: [frontend/](frontend/)
-
-#### Frontend Pages Implemented (7 pages):
-1. **Authentication**
-   - Login page with Cognito JWT authentication
-   - Token storage and management in localStorage
-   - Protected routes with automatic redirect
-
-2. **Dashboard** ([frontend/app/dashboard/page.tsx](frontend/app/dashboard/page.tsx))
-   - Lists all review sessions (8 active sessions)
-   - Session cards with status badges, participants, submissions
-   - **Delete button per session** with confirmation dialog (Jan 25, 2026)
-   - **Create Session dialog** with overlay selection and dates
-   - **Quick Upload dialog** with file picker and session selection
-   - Quick action cards: My Submissions, Quick Upload, **Manage Overlays**
-   - Real-time data from backend API
-
-3. **Session Detail Page** ([frontend/app/session/[id]/page.tsx](frontend/app/session/[id]/page.tsx))
-   - Session information with metadata
-   - **Evaluation Criteria section** (shows overlay criteria before upload)
-   - **Tabbed submission interface** (Jan 25, 2026):
-     - "Upload File" tab - Document upload with base64 encoding
-     - "Paste Text" tab - Direct text paste with character counter (max 10MB)
-   - Real-time character and size counter for pasted text
-   - Submissions list with status monitoring
-   - Integration with overlay API
-
-4. **Submission Detail Page** ([frontend/app/submission/[id]/page.tsx](frontend/app/submission/[id]/page.tsx))
-   - Overall AI-generated score display
-   - Criterion-by-criterion breakdown
-   - Strengths, weaknesses, recommendations
-   - Clarification questions with answer submission interface
-   - **Auto-refresh every 10 seconds** when analysis is pending/in-progress (Jan 25, 2026)
-   - Visual indicators for pending, in-progress, and completed states
-   - Real-time feedback from AI agents
-
-5. **Overlays List Page** ([frontend/app/overlays/page.tsx](frontend/app/overlays/page.tsx))
-   - Grid display of all evaluation overlays (3 columns)
-   - Overlay cards showing name, description, status, document type, criteria count
-   - **Delete button per overlay** with confirmation dialog (Jan 25, 2026)
-   - Create new overlay button
-   - Edit criteria button per overlay
-   - Soft delete (sets `is_active = false`)
-   - Accessible from dashboard "Manage Overlays" card
-
-6. **Edit Overlay Page** ([frontend/app/overlays/[id]/page.tsx](frontend/app/overlays/[id]/page.tsx))
-   - Display overlay metadata and status
-   - List all evaluation criteria with details
-   - Add new criterion form (name, description, weight 0.0-1.0, max score, category)
-   - Edit existing criteria inline
-   - Delete criteria with confirmation
-   - Form validation and error handling
-
-7. **New Overlay Page** ([frontend/app/overlays/new/page.tsx](frontend/app/overlays/new/page.tsx))
-   - Form to create new overlay (name, description, document type)
-   - Input validation (name required)
-   - Auto-redirect to edit page after creation to add criteria
-   - Informational content about evaluation overlays
-
-8. **CORS Proxy Server**
-   - Local proxy for development (localhost:3001)
-   - Handles CORS issues between browser and API Gateway
-   - Proxies both API Gateway and Cognito requests
-   - Location: [frontend/proxy-server.js](frontend/proxy-server.js)
-
-#### Technology Stack:
-- **Framework**: Next.js 15 with App Router
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui (Radix UI primitives)
-  - Card, Button, Badge, Alert, Input, Label, Textarea
-  - All installed and configured
-- **Icons**: Lucide React (20+ icons used)
-- **State Management**: React hooks (useState, useEffect)
-- **API Client**: Custom client with JWT auth ([frontend/lib/api-client.ts](frontend/lib/api-client.ts))
-  - Sessions: GET/POST, getAvailableSessions, getSessionSubmissions, getSessionReport, getSessionExport
-  - Submissions: GET/POST, getSubmission, createSubmission, getSubmissionFeedback, getSubmissionDownload
-  - Answers: getAnswers, submitAnswer
-  - Organizations: getOrganizations
-  - Overlays: GET/POST/PUT/DELETE - getOverlays, getOverlay, createOverlay, updateOverlay, deleteOverlay
-  - LLM Config: getLLMConfigs, getLLMConfig, updateLLMConfig
-- **Authentication**: Custom auth utilities ([frontend/lib/auth.ts](frontend/lib/auth.ts))
-
-## What's Deployed to AWS
-
-### Currently Deployed:
-1. **OrchestrationStack**:
-   - Aurora PostgreSQL Serverless v2 (overlay-db-cluster)
-   - Secrets Manager (overlay-db-secret)
-   - VPC with public/private subnets
-   - Security groups for database access
-   - Lambda Layer (overlay-common-layer) with db-utils.js v2.0.0 and llm-client.js v2.3.0
-   - Step Functions workflow (OverlayOrchestrator) with 6 AI agents
-   - S3 bucket for document storage (overlay-documents-*)
-   - DynamoDB table for LLM configuration (overlay-llm-config)
-
-2. **Database Schema**:
-   - All tables created and seeded with sample data (8 sessions, 6 submissions)
-   - organizations, users, overlays (with document context fields), evaluation_criteria
-   - review_sessions, session_participants, document_submissions
-   - evaluation_responses, clarification_questions, clarification_answers
-   - ai_agent_results (stores AI-generated feedback in JSONB format)
-   - **NEW**: Overlays table includes document_purpose, when_used, process_context, target_audience
-
-3. **ComputeStack** (Deployed):
-   - API Gateway REST API (wojz5amtrl) with 39+ routes
-   - Cognito User Pool (overlay-users, eu-west-1_lC25xZ8s6) with authorizer
-   - Test user: admin@example.com / TestPassword123! (system_admin group)
-   - 9 Lambda CRUD handlers all deployed and working
-   - All handlers connected to VPC for database access
-   - IAM roles with Secrets Manager, S3, Step Functions, DynamoDB permissions
-
-## What's Working End-to-End
-
-### ✅ Complete Workflows:
-1. **Authentication Flow**:
-   - Login via Cognito (through proxy)
-   - JWT token storage
-   - Protected API calls with Authorization header
-
-2. **Session Management**:
-   - View all sessions (8 active sessions in database)
-   - View session details with participants
-   - See evaluation criteria before upload
-   - Upload documents to sessions
-
-3. **Document Upload & Processing**:
-   - **Two submission methods** (Jan 25, 2026):
-     - Upload document file (PDF, DOCX, DOC, TXT) with base64 encoding
-     - Paste text directly into textarea (max 10MB) with real-time character counter
-   - Store in S3 (both files and pasted text)
-   - Create submission record with appropriate content type
-   - Automatically trigger Step Functions AI workflow
-   - Monitor AI analysis status with real-time updates
-
-4. **AI Analysis & Feedback**:
-   - 6 AI agents process documents
-   - Store results in ai_agent_results table (JSONB)
-   - Retrieve feedback with scores, strengths, weaknesses
-   - Display comprehensive analysis in UI
-
-5. **Clarification Q&A**:
-   - View AI-generated questions
-   - Submit answers
-   - Track answer history
-
-6. **CORS Handling**:
-   - Local proxy server handles CORS for development
-   - Transparent proxying to API Gateway and Cognito
-   - No CORS issues in browser
-
-7. **Overlay Management** (NEW):
-   - Create new evaluation overlays with metadata
-   - View all overlays in grid layout
-   - Add evaluation criteria (name, weight, description, category)
-   - Edit criteria inline with real-time validation
-   - Delete criteria with confirmation
-   - API integration: POST /overlays, PUT /overlays/{id}, DELETE /overlays/{id}
-   - Updates reflected immediately across dashboard and session pages
-
-### Frontend Testing URLs:
-- **Main application**: http://localhost:3000
-- **Proxy server**: http://localhost:3001
-- **API Gateway**: https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production
+**Database**:
+- Aurora PostgreSQL 16.6 in private VPC subnets
+- Migration Lambda: `overlay-database-migration` (only VPC-accessible way to run migrations)
+- Key tables: `document_submissions` (with `appendix_files` JSONB column), `review_sessions`, `overlays`, `evaluation_criteria`, `user_notes`
 
 ## Local Development Setup
 
-### Prerequisites:
-- Node.js 20.x
-- AWS credentials configured
-- Database seeded with test data
+### Starting Development Servers
 
-### Start Frontend (requires 2 terminals):
+**CRITICAL**: You must run BOTH servers in separate terminals:
 
-**Terminal 1 - Proxy Server**:
 ```bash
-cd c:\Projects\overlay-platform\frontend
+# Terminal 1: Start CORS proxy server (REQUIRED)
+cd frontend
 node proxy-server.js
-```
-Output: "🔄 CORS Proxy Server running on http://localhost:3001"
+# Should show: "🔄 CORS Proxy Server running on http://localhost:3001"
 
-**Terminal 2 - Next.js Dev Server**:
-```bash
-cd c:\Projects\overlay-platform\frontend
+# Terminal 2: Start Next.js dev server
+cd frontend
 npm run dev
+# Should show: "✓ Ready in 1176ms"
 ```
-Output: "✓ Ready in 1037ms" on http://localhost:3000
 
-### Environment Configuration:
-**File**: [frontend/.env.local](frontend/.env.local)
+Frontend URL: http://localhost:3000
+Proxy URL: http://localhost:3001 (proxies to API Gateway)
+
+**Why the proxy?** API Gateway doesn't have CORS configured for localhost. The proxy adds CORS headers and forwards requests to production API Gateway.
+
+### Environment Configuration
+
+**Frontend** (`frontend/.env.local`):
 ```
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 ```
 
-### Test Credentials:
-- **Email**: admin@example.com
-- **Password**: TestPassword123!
-- **Role**: system_admin (full access)
+### Test Credentials
 
-## Key Architecture Decisions
+- Email: `admin@example.com`
+- Password: `TestPassword123!`
+- Role: `system_admin` (full access)
 
-### 1. CORS Solution
-**Problem**: API Gateway doesn't have CORS headers configured for browser requests from localhost
+## Common Commands
 
-**Solution**: Local proxy server (proxy-server.js) that:
-- Runs on localhost:3001
-- Proxies all requests to API Gateway
-- Adds proper CORS headers
-- Also proxies Cognito authentication requests
+### Frontend Development
 
-**Benefits**:
-- No CORS errors in browser
-- Transparent to frontend code
-- Easy to disable for production (just update .env.local)
+```bash
+cd frontend
 
-### 2. Evaluation Criteria Display
-**Feature**: Session detail page shows evaluation criteria BEFORE upload
+# Development
+npm run dev              # Start Next.js dev server on port 3000
+node proxy-server.js     # Start CORS proxy on port 3001 (separate terminal)
 
-**Implementation**:
-- Fetches overlay details when session loads
-- Displays criterion name, weight, description, max score, category
-- Fallback UI shows 4 default evaluation areas if no criteria loaded
-- Helps users understand what documents will be evaluated against
+# Build
+npm run build            # Build for production
+npm start                # Run production build locally
 
-### 3. Overlay Management System
-**Feature**: Complete admin interface for creating and managing evaluation overlays
+# Linting
+npm run lint             # Run ESLint
+```
 
-**Pages**:
-- **Overlays List**: Grid view of all overlays with status, criteria count
-- **Edit Overlay**: Add/edit/delete criteria with inline forms
-- **New Overlay**: Create overlay with metadata (name, description, document type)
+### Backend/Infrastructure
 
-**Criteria Management**:
-- Add criterion with name, description, weight (0.0-1.0), max score, category
-- Edit criteria inline with validation
-- Delete with confirmation dialog
-- Real-time form validation
-- Success/error feedback messages
+```bash
+# Build CDK stacks
+npm run build            # Compile TypeScript to JavaScript
+npm run watch            # Watch mode for development
 
-**Integration**:
-- Accessible from dashboard "Manage Overlays" card
-- Uses API endpoints: GET/POST/PUT/DELETE /overlays, GET/PUT /overlays/{id}
-- API Client methods: createOverlay(), updateOverlay(), deleteOverlay()
-- Updates reflected immediately across all pages
+# Testing
+npm test                 # Run Jest tests
+npm run test:api         # Test API endpoints
+npm run test:workflow    # Test AI workflow
 
-**Implementation Strategy**:
-- Criteria managed by updating entire overlay with criteria array
-- Single PUT request updates both overlay metadata and all criteria
-- Simplifies API contract and maintains data consistency
-- Frontend handles optimistic UI updates with error rollback
+# CDK Deployment
+cdk diff                 # Show changes before deploying
+cdk deploy OverlayStorageStack        # Deploy database/VPC (rare)
+cdk deploy OverlayAuthStack           # Deploy Cognito (rare)
+cdk deploy OverlayComputeStack        # Deploy API Lambdas (common)
+cdk deploy OverlayOrchestrationStack  # Deploy AI agents (common)
 
-### 4. Document Context Integration (NEW)
-**Feature**: AI agents receive contextual information about documents for more accurate analysis
+# Database
+npm run migrate:lambda   # Run database migrations via Lambda
+npm run create-admin     # Create admin user
+npm run seed:llm-config  # Seed LLM configuration
 
-**Context Fields**:
-- **Document Purpose**: What the document is meant to achieve
-- **When Used**: When the evaluation template should be used
-- **Process Context**: What process the document is part of
-- **Target Audience**: Who the intended audience is
+# Utilities
+npm run query:results    # Query AI agent results
+```
 
-**Implementation**:
-- Database: 4 new columns added to overlays table (migration 004)
-- Backend: Overlays CRUD handler updated to handle context fields
-- Frontend: Context forms on create/edit overlay pages
-- Session page: Displays context before evaluation criteria
-- AI Agents: All 6 agents include context in their prompts
+## Database Migration Workflow
 
-**Benefits**:
-- AI provides more contextually-aware analysis
-- Users understand evaluation context before uploading
-- Feedback tailored to document purpose and audience
-- Better alignment with business processes
+**IMPORTANT**: Database is in private VPC - direct connections from local machine will timeout.
 
-### 5. Paste Text Submission (NEW - Jan 25, 2026)
-**Feature**: Users can paste text directly instead of uploading a file
+### Running Migrations
 
-**Implementation**:
-- Session detail page has tabs: "Upload File" and "Paste Text"
-- Paste Text tab includes:
-  - Large textarea (300px min-height) with monospace font
-  - Real-time character counter and file size display (KB)
-  - 10MB size limit indicator
-  - Submit button (appears when text entered)
-  - Clear button to reset
+1. Create migration SQL file: `database/migrations/NNN_description.sql`
+2. Create rollback file: `database/migrations/rollback-NNN_description.sql`
+3. **Copy migration to Lambda directory**: `cp database/migrations/NNN_description.sql lambda/functions/database-migration/migrations/`
+4. **Redeploy migration Lambda**: `cdk deploy OverlayStorageStack`
+5. Run migration via Lambda:
 
-**Backend Handling**:
-- Frontend sends `is_pasted_text: true` flag with submission
-- Text converted to base64 (same as file uploads)
-- Uploaded to S3 with content type "text/plain"
-- Same S3 key pattern: `submissions/{userId}/{timestamp}-pasted-text.txt`
-- Database record created with content_type = "text/plain"
-- Step Functions workflow triggered automatically
-- AI agents fetch from S3 using same `getDocumentFromS3()` function
+```bash
+npm run migrate:lambda
+```
 
-**Design Rationale**:
-- **Consistent architecture**: Pasted text stored in S3 like files (not database)
-- **No special handling**: AI agents treat pasted text identically to files
-- **Scalability**: S3 handles large text storage, not PostgreSQL
-- **Audit trail**: Full S3 and database audit trail maintained
-- **Recoverability**: Text can be retrieved from S3 anytime
+Or manually invoke:
 
-**Benefits**:
-- Faster workflow (no file creation needed)
-- Quick testing of evaluation criteria
-- Easy collaboration (copy/paste from emails, docs)
-- No local file management required
+```bash
+aws lambda invoke \
+  --function-name overlay-database-migration \
+  --payload '{"migrationSQL": "YOUR SQL HERE"}' \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+```
 
-**Files Modified**:
-- [frontend/app/session/[id]/page.tsx](frontend/app/session/[id]/page.tsx) - Added tabs, textarea, character counter
-- [lambda/functions/api/submissions/index.js](lambda/functions/api/submissions/index.js) - Added `is_pasted_text` handling, content type detection
+### Migration Example
 
-**Documentation**: See [PASTE_TEXT_FEATURE.md](PASTE_TEXT_FEATURE.md) for complete implementation details
+```sql
+-- Forward migration
+ALTER TABLE document_submissions
+ADD COLUMN new_field VARCHAR(255);
 
-### 6. Authentication Flow
-**Method**: Cognito JWT tokens via proxy
+-- Rollback migration
+ALTER TABLE document_submissions
+DROP COLUMN IF EXISTS new_field;
+```
 
-**Flow**:
-1. User enters credentials on /login
-2. Frontend calls proxy at localhost:3001/cognito
-3. Proxy forwards to Cognito Identity Provider
-4. Returns JWT IdToken
-5. Token stored in localStorage
-6. All API calls include Authorization header
+## Deployment Workflow
 
-### 7. API Client Architecture
-**Location**: [frontend/lib/api-client.ts](frontend/lib/api-client.ts)
+### Backend Changes (API Handlers)
 
-**Design Pattern**: Centralized API client class with typed methods
+```bash
+# 1. Deploy ComputeStack (contains API Lambda functions)
+cdk deploy OverlayComputeStack
 
-**Features**:
-- JWT token management (setToken, clearToken, getToken)
-- Automatic Authorization header injection
-- Type-safe request/response handling
-- Error handling with standardized ApiResponse<T> interface
-- localStorage integration for token persistence
+# 2. If Lambda Layer changed, also deploy:
+cdk deploy OverlayOrchestrationStack
+```
 
-**Complete Method List** (23+ endpoints):
-- **Sessions**: getSessions(), getAvailableSessions(), getSession(id), createSession(data), deleteSession(id), getSessionSubmissions(id), getSessionReport(id), getSessionExport(id)
-- **Submissions**: getSubmissions(), getSubmission(id), createSubmission(data), getSubmissionFeedback(id), getSubmissionDownload(id)
-- **Answers**: getAnswers(submissionId), submitAnswer(submissionId, data)
-- **Organizations**: getOrganizations()
-- **Overlays**: getOverlays(), getOverlay(id), createOverlay(data), updateOverlay(id, data), deleteOverlay(id)
-- **LLM Config**: getLLMConfigs(), getLLMConfig(agentName), updateLLMConfig(agentName, data)
+### AI Agent Changes
 
-**Usage Pattern**:
+```bash
+# Deploy OrchestrationStack (contains Lambda Layer + AI agents)
+cdk deploy OverlayOrchestrationStack
+```
+
+### Database Schema Changes
+
+```bash
+# 1. Create migration files
+# 2. Test locally if possible
+# 3. Run via Lambda
+npm run migrate:lambda
+
+# 4. Deploy backend changes that use new schema
+cdk deploy OverlayComputeStack
+```
+
+### Frontend Changes
+
+**Production deployment is NOT set up yet**. Frontend currently runs on localhost only.
+
+Options discussed:
+- Vercel (recommended for Next.js)
+- AWS Amplify (attempted but failed with Next.js 16)
+- S3 + CloudFront (requires SSR workaround for dynamic routes)
+
+## Critical Implementation Details
+
+### UTF-8 Text Encoding (Fixed in v1.4)
+
+When handling pasted text in frontend, use `TextEncoder` instead of `btoa()`:
+
 ```typescript
-// Import singleton instance
-import { apiClient } from '@/lib/api-client';
+// ❌ WRONG: btoa() fails on Unicode characters
+const textContent = btoa(pastedText);
 
-// Set token after login
-apiClient.setToken(idToken);
-
-// Make authenticated requests
-const result = await apiClient.getSessions();
-if (result.error) {
-  // Handle error
-} else if (result.data) {
-  // Use data
-}
+// ✅ CORRECT: Use TextEncoder for UTF-8 support
+const encoder = new TextEncoder();
+const uint8Array = encoder.encode(pastedText);
+const textContent = btoa(String.fromCharCode(...uint8Array));
 ```
 
-## Known Issues & Solutions
+Backend decodes correctly with: `Buffer.from(document_content, 'base64')`
 
-### ✅ RESOLVED: Feedback Display Issue (January 25, 2026)
-**Issue**: Completed submissions not displaying feedback scores and analysis in frontend
+### Multi-Document Processing
 
-**Root Causes** (Two separate issues):
-1. **Table Mismatch**: Endpoint was querying `ai_agent_results` table, but scoring agent saves to `feedback_reports` table
-2. **SQL Column Name Error**: Query used `er.criterion_id` but database has `er.criteria_id`
+AI agents use `getDocumentWithAppendices()` utility from Lambda Layer:
 
-**Fixes** (Deployed in two stages):
-1. **First Fix (22:34:50 UTC)**: Changed from `ai_agent_results` to `feedback_reports` table
-2. **Second Fix (23:03:52 UTC)**: Corrected SQL column names (`criterion_id` → `criteria_id`)
+```javascript
+// Concatenates main document + appendices with separators
+const documentText = await getDocumentWithAppendices(
+  dbClient,
+  submissionId,
+  s3Bucket,
+  s3Key
+);
 
-**Details**:
-- Scoring agent saves feedback to `feedback_reports.content` as JSON string
-- Endpoint now queries correct table with `report_type = 'comment'` filter
-- Parses JSON content to extract overall_score, strengths, weaknesses, recommendations
-- Fixed column references in both SELECT and JOIN clauses
-- Removed non-existent `er.feedback` column reference
+// Format: Main → ---APPENDIX 1: filename--- → Text1 → ---APPENDIX 2: filename--- → Text2
+```
 
-**Verification**:
-- ✅ File uploads: Score 84/100 with complete feedback
-- ✅ Pasted text: Score 86/100 with complete feedback
-- ✅ Both submission types working correctly
+### S3 Presigned URLs
 
-**Documentation**:
-- [FEEDBACK_DISPLAY_FIX.md](FEEDBACK_DISPLAY_FIX.md) - Table mismatch fix
-- [SQL_COLUMN_FIX.md](SQL_COLUMN_FIX.md) - Column name fix
+Download endpoints generate 15-minute expiring URLs:
 
-### ✅ RESOLVED: CORS Blocking Browser Requests
-**Issue**: Browser blocked all API requests due to missing CORS headers
+```javascript
+const command = new GetObjectCommand({
+  Bucket: s3Bucket,
+  Key: s3Key,
+  ResponseContentDisposition: `attachment; filename="${document_name}"`,
+});
+const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+```
 
-**Fixed**: Implemented local proxy server that adds CORS headers and proxies requests
+### JSONB Column Handling
 
-### ✅ RESOLVED: LLM Config Handler Not Deployed
-**Fixed**: Deployed llm-config-handler Lambda and added API Gateway routes
+The `appendix_files` column uses JSONB with GIN index:
 
-### ✅ RESOLVED: Missing UI Components
-**Issue**: Input, Label, and Textarea components not installed for overlay forms
+```sql
+-- Query pattern
+SELECT appendix_files
+FROM document_submissions
+WHERE submission_id = $1;
 
-**Fixed**: Installed shadcn/ui components via `npx shadcn@latest add input/label/textarea`
+-- Returns: [{"file_name": "...", "s3_key": "...", "file_size": 123, "upload_order": 1}]
+```
 
-### ✅ RESOLVED: Missing API Client Methods
-**Issue**: createOverlay() and updateOverlay() methods missing from api-client.ts
+### Notes Feature (v1.5) - Complete System
 
-**Fixed**: Added complete CRUD methods for overlays (create, update, delete)
+**Architecture**: Five-phase implementation completed:
+- **Phase 1**: Right sidebar with localStorage persistence
+- **Phase 2**: Text selection via right-click context menu
+- **Phase 3A**: Database persistence backend (PostgreSQL + Lambda API)
+- **Phase 3B**: Frontend integration for saving notes
+- **Phase 5**: Saved notes library + Word export + Full CRUD
 
-### ✅ RESOLVED: Stuck Submissions Issue (January 25, 2026)
-**Issue**: Documents uploaded were stuck in "pending" status because AI analysis workflow was never triggered
+**User Workflow**:
+1. User accumulates notes in persistent notepad (localStorage)
+2. Right-click selected text anywhere to add to notepad
+3. Click "Save Note" → enters title → saves to database
+4. Click "Saved" tab → views all saved notes in list
+5. Click note → view full content in detail page
+6. Actions: Edit, Delete, Export to Word (.docx)
+7. Notepad remains separate from saved notes (can continue taking new notes)
 
-**Root Causes & Fixes**:
-1. **Missing Environment Variable**: Added `WORKFLOW_STATE_MACHINE_ARN` to submissions Lambda
-2. **Missing IAM Permissions**: Granted Step Functions, Secrets Manager, S3, DynamoDB access
-3. **Wrong Step Functions Input**: Fixed to pass both `documentId` and `submissionId`
-4. **UUID Validation Error**: Added validation in scoring Lambda to filter out fake criterion IDs
+**Frontend Components**:
 
-**Documentation**: [STUCK_SUBMISSION_FIX.md](STUCK_SUBMISSION_FIX.md)
+*Core System*:
+- `NotesContext.tsx` - Global state with localStorage (`overlay-notes-content` key) + API integration
+- `ConditionalSidebar.tsx` - Wrapper that hides sidebar on login page
+- `Sidebar.tsx` - Collapsible 300px sidebar with 3 tabs (Notes, Saved, Tools)
+- `TextSelectionHandler.tsx` - Right-click context menu to add selected text
+- `useTextSelection.ts` - Hook for getting/clearing text selection
+- `useNotes.ts` - Hook for notes context access
 
-### ✅ RESOLVED: Deleted Sessions Reappearing (January 25, 2026)
-**Issue**: Sessions marked as archived kept reappearing on dashboard after refresh
+*Notes Tab*:
+- `NotesPanel.tsx` - Textarea with Save/Clear buttons, character count
+- `SaveNoteDialog.tsx` - Dialog to enter title before saving
 
-**Root Cause**: GET /sessions endpoint wasn't filtering out archived sessions
+*Saved Tab*:
+- `SavedNotesPanel.tsx` - Scrollable list of saved notes with auto-refresh
+- Shows: title, preview (50 chars), relative time ("2 hours ago")
+- Loading, error, and empty states
+- Refresh button in header
 
-**Fix**: Added `AND s.status != 'archived'` filter to sessions list query
+*Note Detail Page* (`/notes/[id]`):
+- Full content display with metadata (created/updated dates)
+- AI Summary section (blue card, if exists - future Phase 4)
+- Action buttons: Back, Export to Word, Edit, Delete
+- `EditNoteDialog.tsx` - Edit title and content
+- `ConfirmDialog.tsx` - Professional styled confirmation dialogs
 
-**Documentation**: [DELETED_SESSIONS_FIX.md](DELETED_SESSIONS_FIX.md)
+*Word Export*:
+- `docx-export.ts` - Utility to generate .docx files
+- Uses `docx` npm package + `file-saver`
+- Formats: Title (Heading 1), AI Summary (if exists), Content (paragraphs), Footer (metadata)
 
-### ✅ RESOLVED: Overlay Delete Functionality Added (January 25, 2026)
-**Feature**: Added delete button to overlay cards with confirmation dialog
+**Backend Endpoints** (`/notes`):
+```typescript
+POST /notes           // Create note (requires: title, content, session_id?)
+                      // Returns: { note_id, created_at }
 
-**Implementation**:
-- Delete button with trash icon on each overlay card
-- Confirmation dialog before deletion
-- Soft delete (sets `is_active = false`)
-- Optimistic UI update
-- Error handling for overlays in use
+GET /notes            // List user's notes (sorted by created_at DESC)
+                      // Returns: { notes: [{ note_id, title, content_preview, created_at, session_id }], total }
 
-**Documentation**: [OVERLAY_DELETE_FEATURE.md](OVERLAY_DELETE_FEATURE.md)
+GET /notes/{id}       // Get full note (with ownership check)
+                      // Returns: { note_id, title, content, ai_summary, created_at, updated_at, session_id }
 
-## Testing
+PUT /notes/{id}       // Update note (accepts: title?, content?, ai_summary?)
+                      // Returns: { note_id, updated_at }
 
-### Backend API Tests:
+DELETE /notes/{id}    // Delete note (with ownership check)
+                      // Returns: { success: true, note_id }
+```
+
+**Authentication**:
+- All endpoints extract `user_id` from JWT token's `sub` claim
+- Ownership verification on GET/PUT/DELETE operations (403 if not owner)
+- Notes scoped per user automatically
+
+**Database Schema**:
+```sql
+CREATE TABLE user_notes (
+  note_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  session_id UUID REFERENCES review_sessions(session_id) ON DELETE SET NULL,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  ai_summary TEXT,                    -- For future AI summarization (Phase 4)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_notes_user_id ON user_notes(user_id);
+CREATE INDEX idx_user_notes_session_id ON user_notes(session_id);
+CREATE INDEX idx_user_notes_created_at ON user_notes(created_at DESC);
+
+-- Trigger to auto-update updated_at
+CREATE TRIGGER update_user_notes_updated_at
+  BEFORE UPDATE ON user_notes
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+```
+
+**Key Implementation Details**:
+- **Text Selection**: Right-click only (no floating button - positioning issues with sidebar)
+- **Note Format**: Appends with bullet points: `• ${selectedText}`
+- **Persistence**: localStorage for notepad, PostgreSQL for saved notes (hybrid approach)
+- **Auto-Refresh**: SavedNotesPanel reloads when pathname changes (detects navigation)
+- **Delete Flow**: Shows styled dialog → deletes → redirects to /dashboard → auto-refresh list
+- **Character Limits**: Title max 255 chars, content unlimited
+- **Word Export**: Safe filename (replaces special chars), includes metadata footer
+- **Sidebar Visibility**: Hidden on login page, visible everywhere else
+- **CRUD Operations**: All verify ownership, return proper HTTP status codes
+
+**Security**:
+- JWT authentication required for all endpoints
+- User_id extracted from token (not request body)
+- Foreign key constraints enforce referential integrity
+- CASCADE delete when user deleted
+- SET NULL when session deleted (notes remain accessible)
+
+**Future Enhancements (Phase 4)**:
+- AI-powered summarization of long notes
+- Auto-populate `ai_summary` field using Claude API
+- Display in blue card on note detail page
+
+### Git Workflow
+
+**IMPORTANT**: When committing changes:
+
 ```bash
-# Test all endpoints
-node scripts/test-api-endpoints.js
+# Never use git add . or git add -A (can accidentally add sensitive files)
+# Always add specific files:
+git add path/to/specific/file.ts
 
-# Test new feature endpoints
-node scripts/test-new-endpoints.js
+# Commit with co-authored tag:
+git commit -m "$(cat <<'EOF'
+Your commit message here.
 
-# Test LLM configuration
-node scripts/test-llm-config.js
-
-# Verify CORS fix
-node scripts/verify-cors-fix.js
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+EOF
+)"
 ```
 
-### Frontend Manual Testing:
-1. Start proxy server: `node frontend/proxy-server.js`
-2. Start Next.js: `npm run dev` (in frontend directory)
-3. Open browser: http://localhost:3000
-4. Login with admin@example.com
-5. Navigate through:
-   - Dashboard (8 sessions, manage overlays card)
-   - Session detail (evaluation criteria, upload, submissions)
-   - Submission detail (feedback, questions, answers)
-   - Overlays list (view all overlays)
-   - Create new overlay (form with validation)
-   - Edit overlay (add/edit/delete criteria)
+## Testing Checklist
 
-## Documentation Files
+After deployment, run through:
 
-### Implementation Guides:
-- [BACKEND_API_IMPLEMENTATION.md](BACKEND_API_IMPLEMENTATION.md) - API patterns and examples
-- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) - Detailed handler status
-- [FRONTEND_COMPLETE.md](FRONTEND_COMPLETE.md) - Frontend implementation summary
-- [CORS_FIX_COMPLETE.md](CORS_FIX_COMPLETE.md) - CORS solution details
-- [EVALUATION_CRITERIA_ADDED.md](EVALUATION_CRITERIA_ADDED.md) - Criteria display feature
-- [OVERLAY_MANAGEMENT_COMPLETE.md](OVERLAY_MANAGEMENT_COMPLETE.md) - Overlay management feature
-- [CONTEXT_FIELDS_COMPLETE.md](CONTEXT_FIELDS_COMPLETE.md) - Document context integration
-- [SESSION_SUMMARY.md](SESSION_SUMMARY.md) - Complete session accomplishments
+### Core Functionality
+1. **Authentication**:
+   - Login at http://localhost:3000/login
+   - Verify sidebar NOT visible on login page
+   - After login, verify sidebar appears
 
-### Bug Fix Guides (January 25, 2026):
-- [STUCK_SUBMISSION_FIX.md](STUCK_SUBMISSION_FIX.md) - 4 fixes for stuck submissions workflow
-- [DELETED_SESSIONS_FIX.md](DELETED_SESSIONS_FIX.md) - Sessions delete query fix
-- [OVERLAY_DELETE_FEATURE.md](OVERLAY_DELETE_FEATURE.md) - Overlay delete implementation
+2. **Overlays**: View/create/edit evaluation criteria
 
-### Testing Guides:
-- [frontend/TESTING.md](frontend/TESTING.md) - Frontend testing instructions
-- [scripts/test-*.js](scripts/) - Various test scripts
+3. **Session Upload**: Test both "Upload File" and "Paste Text" tabs
 
-## Testing & Validation
+4. **Appendix Upload**: Attach PDF appendices (max 5MB each)
 
-### Critical Rule: Fix Failing Tests Before New Features ⚠️
-**Always run the testing checklist after deployments and before adding new features. Integration issues compound quickly.**
+5. **AI Processing**: Verify status transitions (pending → in_progress → completed)
 
-### Testing Documentation
-- **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)**: Comprehensive end-to-end validation steps
-  - Must be run after every deployment
-  - Covers all critical flows: auth, overlays, upload, AI processing, feedback
-  - Includes quick 5-minute smoke test
-  - Documents common failure points and fixes
+6. **Feedback Display**: Check scores, strengths, weaknesses, recommendations
 
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Pre/post deployment validation
-  - Pre-deployment readiness checks
-  - Step-by-step deployment procedures
-  - Post-deployment validation
-  - Rollback procedures
+7. **Download**: Test main document and appendix downloads
 
-### Known Integration Issues (Resolved)
-1. ✅ **Criteria Save Issue** (Jan 26, 2026)
-   - **Problem**: Adding criteria to overlays showed success but didn't persist to database
-   - **Cause**: Backend `handleUpdate` function ignored `criteria` field in PUT requests
-   - **Fix**: Updated overlays handler to process criteria array and map frontend/backend schema
-   - **Verification**: Run `node scripts/test-criteria-fix.js`
+### Notes Feature (v1.5 Complete System)
 
-2. ✅ **Feedback Schema Mismatch** (Jan 25, 2026)
-   - **Problem**: Feedback endpoints queried wrong table (`feedback_reports` instead of `ai_agent_results`)
-   - **Fix**: Updated 4 endpoints to query `ai_agent_results` with proper JSONB parsing
-   - **Affected**: GET /submissions/{id}/feedback, /download, /sessions/{id}/report, /export
+**Phase 1-2: Notepad + Text Selection**
+1. Open sidebar → Notes tab
+2. Type notes directly in textarea
+3. Verify character count updates
+4. Refresh page → verify content persists (localStorage)
+5. Select text in feedback → right-click → "Add to Notes"
+6. Verify selected text appends with bullet point: `• ${text}`
 
-3. ⚠️ **Step Functions Manual Trigger** (Ongoing)
-   - **Problem**: S3 upload event not automatically triggering AI workflow
-   - **Current**: Manual trigger via AWS Console required
-   - **Workaround**: Copy submission payload and execute state machine manually
-   - **TODO**: Wire S3 event → EventBridge → Step Functions
+**Phase 3: Save to Database**
+7. Click "Save Note" button (only enabled when notepad has content)
+8. Enter title in dialog (max 255 characters with counter)
+9. See content preview in dialog
+10. Click "Save Note" → verify success toast
+11. Verify notepad content remains (not cleared after save)
+12. Click "Clear" button → verify confirmation prompt
+13. Confirm clear → verify notepad emptied + success toast
 
-### Automated Testing
-Run end-to-end validation:
-```bash
-# Full integration test
-node scripts/end-to-end-test.js
+**Phase 5: Saved Notes Library**
+14. Click "Saved" tab in sidebar
+15. Verify list shows saved notes:
+    - Title (bold, truncated if long)
+    - Content preview (50 characters)
+    - Relative time ("2 hours ago")
+    - Total count in header
+16. Click "Refresh" button → verify list updates
+17. Click on a saved note → opens detail page
 
-# Verify overlays and criteria
-node scripts/check-overlays.js
+**Note Detail Page**
+18. Verify displays:
+    - Full title
+    - Created date (formatted)
+    - Updated date (if different from created)
+    - Complete content with line breaks preserved
+19. Click "Back" button → returns to previous page
+20. Test all action buttons:
 
-# Verify submissions and feedback
-node scripts/check-submissions.js
-```
+**Export to Word**
+21. Click "Export to Word" button
+22. Verify .docx file downloads
+23. Open file in Microsoft Word
+24. Verify formatting:
+    - Title as Heading 1
+    - Content with line breaks
+    - Footer with generation date
 
-### Manual Testing (Quick Smoke Test)
-1. Login → Dashboard loads ✅
-2. Create overlay → Add criterion → Criterion saves ✅
-3. Upload document → Success dialog appears ✅
-4. View submission → Feedback displays ✅
-5. Copy feedback → Toast notification works ✅
+**Edit Note**
+25. Click "Edit" button
+26. Verify dialog pre-filled with current title and content
+27. Modify title and/or content
+28. Click "Save Changes"
+29. Verify success toast
+30. Verify page reloads with updated content
+31. Verify "Updated" date changes
 
-**If all 5 pass, critical paths are working.**
+**Delete Note**
+32. Click "Delete" button
+33. Verify professional confirmation dialog shows:
+    - Red warning icon
+    - Note title clearly displayed
+    - Warning about permanent deletion
+34. Click "Cancel" → dialog closes, note remains
+35. Click "Delete" again → Click "Delete Note"
+36. Verify success toast
+37. Verify redirect to /dashboard
+38. Open sidebar → Saved tab
+39. Verify deleted note no longer appears in list
+40. Verify note count updated
 
----
+**Auto-Refresh Testing**
+41. Save a new note
+42. Open Saved tab → verify new note appears without manual refresh
+43. Delete a note from detail page
+44. Verify Saved list automatically updates after redirect
 
-## Next Steps
+**Edge Cases**
+45. Try saving empty notepad → verify error toast
+46. Try saving note with empty title → verify validation error
+47. Try saving note with 256+ character title → verify validation error
+48. Test with Unicode characters (emojis, special chars)
+49. Test with very long content (10,000+ characters)
+50. Test rapid save/delete operations
 
-### For Production Deployment:
+## Troubleshooting
 
-1. **Enable CORS on API Gateway**:
-   - Add CORS configuration to API Gateway
-   - Allow frontend domain origin
-   - Remove proxy server dependency
+### "Failed to submit text" error
+- **Cause**: Unicode characters in pasted text
+- **Fix**: Use `TextEncoder` API (already fixed in v1.4)
+- **Check**: Browser DevTools Console for "InvalidCharacterError"
 
-2. **Deploy Frontend**:
-   - Build Next.js for production: `npm run build`
-   - Deploy to Vercel/AWS Amplify/S3+CloudFront
-   - Update environment variables with production API URL
+### Submissions stuck in "pending"
+- **Cause**: Step Functions workflow not triggered
+- **Fix**: Verify `WORKFLOW_STATE_MACHINE_ARN` environment variable in submissions Lambda
+- **Check**: CloudWatch Logs for "Started AI workflow" message
 
-3. **Complete AI Workflow Testing**:
-   - Upload test documents
-   - Trigger Step Functions workflow
-   - Verify all 6 agents complete successfully
-   - Confirm feedback displays correctly in UI
+### Database connection timeout
+- **Cause**: Aurora is in private VPC, not accessible from internet
+- **Fix**: Use `overlay-database-migration` Lambda for all database operations
+- **Never**: Try to connect directly from local machine
 
-4. **Add Missing Features**:
-   - Real-time status updates (WebSocket or polling)
-   - Pagination for large lists
-   - Search and filtering
-   - User profile management
-   - Admin dashboard
+### API returns 500 errors
+- **Check**: CloudWatch Logs for Lambda function (logs group: `/aws/lambda/overlay-api-*`)
+- **Common**: JSONB cast errors - ensure `::jsonb` cast on text columns
+- **Common**: Missing environment variables in Lambda configuration
 
-5. **Security Hardening**:
-   - Add rate limiting
-   - Implement input validation
-   - Add audit logging
-   - Configure WAF rules
+### Frontend shows "Missing Authentication Token"
+- **Cause**: Proxy server not running or API Gateway route not configured
+- **Fix**: Start proxy with `node proxy-server.js` in frontend directory
+- **Check**: Proxy logs show request being forwarded
 
-## Summary
+## Project Status
 
-### What's Complete:
-✅ **Backend**: 9/9 Lambda handlers deployed, 39+ API endpoints working
-✅ **Frontend**: 7 complete pages with full UI/UX
-  - Authentication (login)
-  - Dashboard with quick actions and **session delete** (Jan 25, 2026)
-  - Session detail with criteria display
-  - Submission detail with AI feedback and **auto-refresh** (Jan 25, 2026)
-  - Overlays list with grid display and **overlay delete** (Jan 25, 2026)
-  - Edit overlay with criteria management
-  - New overlay creation form
-✅ **Database**: Schema created, seeded with 8 sessions and 6 submissions
-✅ **AI Agents**: 6 agents operational via Step Functions with **UUID validation** (Jan 25, 2026)
-✅ **Infrastructure**: API Gateway, Cognito, Lambda, RDS, S3, DynamoDB all configured
-✅ **CORS**: Proxy server solution implemented for local development
-✅ **Features**:
-  - Evaluation criteria display before upload
-  - Q&A workflow for clarification questions
-  - AI feedback viewing with scores
-  - Session management with create/delete dialogs
-  - Complete overlay management system
-  - Criteria CRUD operations
-  - **Delete functionality for sessions and overlays** (Jan 25, 2026)
-  - **Auto-refresh for pending submissions** (Jan 25, 2026)
-  - **Quick upload from dashboard** (Jan 25, 2026)
+**Version**: v1.5 - Complete Notes System (January 29, 2026)
+**Backend**: ✅ Fully deployed and operational (10 API handlers)
+**Database**: ✅ v1.5 schema with appendices + notes support (21 tables, 127 indexes)
+**Frontend**: ⚠️ Localhost only (production deployment needed)
+**AI Workflow**: ✅ 6 agents processing submissions
+**Notes Feature**: ✅ All phases complete (sidebar, text selection, database persistence, saved library, Word export, full CRUD)
 
-### Current Status:
-🟢 **Backend API**: Fully operational (39+ endpoints)
-🟢 **Frontend**: 7 pages, fully functional and connected
-🟢 **Overlay Management**: Complete admin interface for criteria
-🟢 **Development Environment**: Ready for testing
-🟡 **Production**: Needs CORS configuration and frontend deployment
+### Version History
 
-### Line Count:
-- **Backend**: 3,500+ lines (9 Lambda handlers)
-- **Frontend**: 2,000+ lines (7 pages + utilities)
-- **Infrastructure**: 800+ lines (CDK stacks)
-- **Total**: 6,300+ lines of production code
+**v1.5** (January 29, 2026) - Complete Notes System
+- ✅ Phase 1: Right sidebar with localStorage persistence
+- ✅ Phase 2: Text selection via right-click context menu
+- ✅ Phase 3A: Database persistence backend (PostgreSQL + Lambda API)
+- ✅ Phase 3B: Frontend integration for saving notes
+- ✅ Phase 5: Saved notes library + Word export + Full CRUD
+- ✅ Professional styled confirmation dialogs
+- ✅ Auto-refresh after CRUD operations
+- ✅ Sidebar hidden on login page
+- Features: Save, View, Edit, Delete, Export to Word
+- Security: JWT authentication, ownership verification
+- Status: Production Ready
 
-The platform is **fully functional for local development and testing**! 🎉
+**v1.4** (Earlier 2026) - Multi-Document Upload
+- PDF appendices support (max 5 files, 5MB each)
+- Concatenated document processing for AI agents
+- JSONB column for appendix metadata
+- UTF-8 encoding fix for pasted text
 
-Admins can now create evaluation templates, define criteria with weights, and manage overlays through a complete UI before users submit documents for analysis.
+**v1.3 and earlier** - Core platform functionality
+- AI-powered document review system
+- 6-agent workflow (structure, content, grammar, clarification, scoring, orchestrator)
+- Configurable evaluation criteria (overlays)
+- Session management
+- User authentication via Cognito
+
+## Key Files Reference
+
+**Configuration**:
+- `cdk.json` - CDK app configuration
+- `frontend/.env.local` - Frontend environment variables
+- `frontend/proxy-server.js` - Local CORS proxy configuration
+
+**Shared Code**:
+- `lambda/layers/common/nodejs/db-utils.js` - Database utilities (includes `getDocumentWithAppendices()`)
+- `lambda/layers/common/nodejs/llm-client.js` - Claude API client
+
+**API Handlers** (`lambda/functions/api/`):
+- `submissions/index.js` - Document upload, download, feedback endpoints
+- `sessions/index.js` - Review session CRUD + submissions list
+- `overlays/index.js` - Evaluation criteria management
+- `notes/index.js` - User notes CRUD with ownership verification
+
+**AI Agents** (`lambda/functions/step-functions/`):
+- All agents use same pattern: fetch document → call Claude API → store results
+- Results stored in `feedback_reports` table with `report_type` field
+
+**Frontend Key Files**:
+
+*Layout & Structure*:
+- `frontend/app/layout.tsx` - Root layout with NotesProvider and ConditionalSidebar
+- `frontend/lib/api-client.ts` - API client with JWT auth (28+ methods including 5 notes endpoints)
+
+*Main Pages*:
+- `frontend/app/session/[id]/page.tsx` - Upload UI (both file and paste text)
+- `frontend/app/submission/[id]/page.tsx` - Feedback display with auto-refresh (wrapped in TextSelectionHandler)
+- `frontend/app/notes/[id]/page.tsx` - Note detail page with full CRUD actions
+
+*Notes System*:
+- `frontend/contexts/NotesContext.tsx` - Global notes state with localStorage + database integration
+- `frontend/components/sidebar/ConditionalSidebar.tsx` - Hides sidebar on login page
+- `frontend/components/sidebar/Sidebar.tsx` - Right sidebar with 3 tabs (Notes, Saved, Tools)
+- `frontend/components/sidebar/NotesPanel.tsx` - Notepad textarea with Save/Clear buttons
+- `frontend/components/sidebar/SavedNotesPanel.tsx` - Saved notes list with auto-refresh
+- `frontend/components/sidebar/SaveNoteDialog.tsx` - Dialog for entering note title
+- `frontend/components/notes/EditNoteDialog.tsx` - Dialog for editing existing notes
+- `frontend/components/TextSelectionHandler.tsx` - Right-click context menu to add selected text
+- `frontend/components/ui/ConfirmDialog.tsx` - Professional styled confirmation dialogs
+- `frontend/lib/docx-export.ts` - Word document export utility
+- `frontend/hooks/useTextSelection.ts` - Hook for getting/clearing text selection
+- `frontend/hooks/useNotes.ts` - Hook for notes context access
+
+## Documentation
+
+Comprehensive docs in root directory:
+- `TESTING_CHECKLIST.md` - Post-deployment validation
+- `DEPLOYMENT_CHECKLIST.md` - Pre/post deployment procedures
+- `LESSONS_LEARNED_TESTING_AND_DEBUGGING.md` - Prevention system results
+- `V1.4_IMPLEMENTATION_COMPLETE.md` - Multi-document feature technical guide
+- `CRITICAL_SCORE_FIX.md` - Score calculation methodology
+- `SESSION_DETAIL_FIX.md` - Session data visibility fix

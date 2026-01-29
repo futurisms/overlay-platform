@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
-import { Loader2, Calendar, Users, FileText, LogOut, Upload, Settings, Trash2, Plus } from "lucide-react";
+import { Loader2, Calendar, Users, FileText, LogOut, Upload, Settings, Trash2, Plus, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser, logout } from "@/lib/auth";
 
@@ -43,6 +43,10 @@ export default function DashboardPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false);
   const [showQuickUploadDialog, setShowQuickUploadDialog] = useState(false);
+  const [showEditSessionDialog, setShowEditSessionDialog] = useState(false);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editSessionData, setEditSessionData] = useState({ name: "", description: "" });
+  const [isUpdating, setIsUpdating] = useState(false);
   const [newSessionData, setNewSessionData] = useState({
     name: "",
     description: "",
@@ -135,6 +139,44 @@ export default function DashboardPage() {
       console.error(err);
     } finally {
       setIsDeleting(null);
+    }
+  };
+
+  const handleEditSessionClick = (session: Session, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSession(session);
+    setEditSessionData({
+      name: session.name,
+      description: session.description || "",
+    });
+    setShowEditSessionDialog(true);
+  };
+
+  const handleUpdateSession = async () => {
+    if (!editingSession || !editSessionData.name) {
+      setError("Session name is required");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const result = await apiClient.updateSession(editingSession.session_id, {
+        name: editSessionData.name,
+        description: editSessionData.description,
+      });
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setShowEditSessionDialog(false);
+        setEditingSession(null);
+        loadSessions(); // Refresh the list
+      }
+    } catch (err) {
+      setError("Failed to update session");
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -335,6 +377,14 @@ export default function DashboardPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={(e) => handleEditSessionClick(session, e)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => handleDeleteSession(session.session_id, e)}
                             disabled={isDeleting === session.session_id}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -509,6 +559,57 @@ export default function DashboardPage() {
               </Button>
               <Button onClick={handleCreateSession}>
                 Create Session
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Session Dialog */}
+        <Dialog open={showEditSessionDialog} onOpenChange={setShowEditSessionDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Analysis Session</DialogTitle>
+              <DialogDescription>
+                Update the session name and description
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="edit-session-name">Session Name *</Label>
+                <Input
+                  id="edit-session-name"
+                  placeholder="e.g., Q1 2024 Contract Review"
+                  value={editSessionData.name}
+                  onChange={(e) => setEditSessionData({ ...editSessionData, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-session-description">Description</Label>
+                <Textarea
+                  id="edit-session-description"
+                  placeholder="Describe the purpose of this review session..."
+                  rows={3}
+                  value={editSessionData.description}
+                  onChange={(e) => setEditSessionData({ ...editSessionData, description: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditSessionDialog(false)} disabled={isUpdating}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateSession} disabled={isUpdating}>
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

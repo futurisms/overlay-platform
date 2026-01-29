@@ -1,0 +1,12 @@
+{
+  "httpMethod": "GET",
+  "path": "/notes",
+  "pathParameters": null,
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "e2c51414-40b1-701b-493d-a6179aadad96"
+      }
+    }
+  }
+}
