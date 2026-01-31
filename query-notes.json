@@ -1,0 +1,3 @@
+{
+  "migrationSQL": "SELECT note_id, title, LEFT(content, 150) as content_preview, LENGTH(content) as content_length, created_at, updated_at, user_id, session_id FROM user_notes WHERE user_id = (SELECT user_id FROM users WHERE email = 'admin@example.com') ORDER BY created_at DESC;"
+}

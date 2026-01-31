@@ -1,0 +1,14 @@
+{
+  "httpMethod": "GET",
+  "path": "/notes",
+  "pathParameters": null,
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "10000000-0000-0000-0000-000000000001"
+      }
+    }
+  },
+  "headers": {},
+  "body": null
+}
