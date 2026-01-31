@@ -543,12 +543,53 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
 
   // Parse the JSON content from feedback_reports
   const feedbackContent = JSON.parse(scoringResult.rows[0].content);
+
+  // Helper function to extract sections from text
+  const extractSection = (text, sectionName) => {
+    const regex = new RegExp(`${sectionName}[:\\s]+([\\s\\S]*?)(?=\\n\\n[A-Z]|$)`, 'i');
+    const match = text.match(regex);
+    if (!match) return [];
+
+    const sectionText = match[1];
+    const items = [];
+
+    // Try to extract bullet points or numbered lists
+    const lines = sectionText.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Match bullet points (-, *, •) or numbered lists (1., 2., etc.)
+      if (trimmed.match(/^[\-\*\•]\s+(.+)/) || trimmed.match(/^\d+[\.\)]\s+(.+)/)) {
+        const cleaned = trimmed.replace(/^[\-\*\•\d\.\)]+\s*/, '');
+        if (cleaned) items.push(cleaned);
+      }
+    }
+
+    return items;
+  };
+
+  const summaryText = feedbackContent.summary || feedbackContent.detailed_feedback || '';
+
+  // If arrays are empty but we have summary text, try to extract them
+  let strengths = feedbackContent.strengths || [];
+  let weaknesses = feedbackContent.weaknesses || [];
+  let recommendations = feedbackContent.recommendations || [];
+
+  if (strengths.length === 0 && summaryText) {
+    strengths = extractSection(summaryText, 'Strengths');
+  }
+  if (weaknesses.length === 0 && summaryText) {
+    weaknesses = extractSection(summaryText, 'Weaknesses');
+  }
+  if (recommendations.length === 0 && summaryText) {
+    recommendations = extractSection(summaryText, 'Recommendations');
+  }
+
   const scoringData = {
     overall_score: feedbackContent.scores?.average || feedbackContent.overall_score || null,
-    strengths: feedbackContent.strengths || [],
-    weaknesses: feedbackContent.weaknesses || [],
-    recommendations: feedbackContent.recommendations || [],
-    detailed_feedback: feedbackContent.summary || feedbackContent.detailed_feedback || '',
+    strengths,
+    weaknesses,
+    recommendations,
+    detailed_feedback: summaryText,
   };
 
   // Get evaluation responses (criterion scores)

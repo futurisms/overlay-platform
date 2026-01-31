@@ -173,6 +173,13 @@ export default function SubmissionPage() {
     return "outline";
   };
 
+  // Helper function to extract text from string or object with text property
+  const extractText = (item: any): string => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object' && 'text' in item) return item.text;
+    return JSON.stringify(item);
+  };
+
   const copyToClipboard = async (text: string, section: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -657,12 +664,21 @@ export default function SubmissionPage() {
               <CardContent>
                 <div className="relative">
                   <Alert variant="default">
-                    <AlertDescription>{feedback.detailed_feedback}</AlertDescription>
+                    <AlertDescription>
+                      {typeof feedback.detailed_feedback === 'string'
+                        ? feedback.detailed_feedback
+                        : feedback.detailed_feedback.text || JSON.stringify(feedback.detailed_feedback)}
+                    </AlertDescription>
                   </Alert>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => copyToClipboard(feedback.detailed_feedback, "overall")}
+                    onClick={() => copyToClipboard(
+                      typeof feedback.detailed_feedback === 'string'
+                        ? feedback.detailed_feedback
+                        : feedback.detailed_feedback.text || JSON.stringify(feedback.detailed_feedback),
+                      "overall"
+                    )}
                     className="absolute top-2 right-2"
                   >
                     {copiedSection === "overall" ? (
@@ -709,7 +725,7 @@ export default function SubmissionPage() {
                         size="sm"
                         onClick={() => {
                           const text = feedback.strengths
-                            .map((s: string, i: number) => `${i + 1}. ${s}`)
+                            .map((s: any, i: number) => `${i + 1}. ${extractText(s)}`)
                             .join("\n");
                           copyToClipboard(text, "strengths");
                         }}
@@ -732,10 +748,10 @@ export default function SubmissionPage() {
                 <CardContent>
                   {feedback.strengths && feedback.strengths.length > 0 ? (
                     <ul className="space-y-3">
-                      {feedback.strengths.map((strength: string, index: number) => (
+                      {feedback.strengths.map((strength: any, index: number) => (
                         <li key={index} className="flex items-start gap-3">
                           <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">{strength}</span>
+                          <span className="text-slate-700 dark:text-slate-300">{extractText(strength)}</span>
                         </li>
                       ))}
                     </ul>
@@ -763,7 +779,7 @@ export default function SubmissionPage() {
                         size="sm"
                         onClick={() => {
                           const text = feedback.weaknesses
-                            .map((w: string, i: number) => `${i + 1}. ${w}`)
+                            .map((w: any, i: number) => `${i + 1}. ${extractText(w)}`)
                             .join("\n");
                           copyToClipboard(text, "weaknesses");
                         }}
@@ -786,10 +802,10 @@ export default function SubmissionPage() {
                 <CardContent>
                   {feedback.weaknesses && feedback.weaknesses.length > 0 ? (
                     <ul className="space-y-3">
-                      {feedback.weaknesses.map((weakness: string, index: number) => (
+                      {feedback.weaknesses.map((weakness: any, index: number) => (
                         <li key={index} className="flex items-start gap-3">
                           <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">{weakness}</span>
+                          <span className="text-slate-700 dark:text-slate-300">{extractText(weakness)}</span>
                         </li>
                       ))}
                     </ul>
@@ -814,7 +830,7 @@ export default function SubmissionPage() {
                         size="sm"
                         onClick={() => {
                           const text = feedback.recommendations
-                            .map((r: string, i: number) => `${i + 1}. ${r}`)
+                            .map((r: any, i: number) => `${i + 1}. ${extractText(r)}`)
                             .join("\n");
                           copyToClipboard(text, "recommendations");
                         }}
@@ -837,13 +853,13 @@ export default function SubmissionPage() {
                 <CardContent>
                   {feedback.recommendations && feedback.recommendations.length > 0 ? (
                     <ol className="space-y-4">
-                      {feedback.recommendations.map((recommendation: string, index: number) => (
+                      {feedback.recommendations.map((recommendation: any, index: number) => (
                         <li key={index} className="flex items-start gap-3">
                           <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center justify-center text-sm font-semibold">
                             {index + 1}
                           </span>
                           <span className="text-slate-700 dark:text-slate-300 pt-0.5">
-                            {recommendation}
+                            {extractText(recommendation)}
                           </span>
                         </li>
                       ))}
