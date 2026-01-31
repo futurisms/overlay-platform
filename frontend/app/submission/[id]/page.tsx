@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   Check,
   Paperclip,
   Download,
+  ChevronDown,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -58,6 +59,10 @@ export default function SubmissionPage() {
   const [answerText, setAnswerText] = useState<{ [key: string]: string }>({});
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState<string | null>(null);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
+  const [mainDocumentText, setMainDocumentText] = useState<string>("");
+  const [appendicesContent, setAppendicesContent] = useState<Array<{ fileName: string; text: string; uploadOrder: number }>>([]);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
 
   useEffect(() => {
     // Check authentication
@@ -178,6 +183,73 @@ export default function SubmissionPage() {
       toast.error("Failed to copy to clipboard");
       console.error("Copy failed:", err);
     }
+  };
+
+  // Fetch submission content (main document + appendices text)
+  const fetchContent = async () => {
+    if (!submissionId || isLoadingContent) return;
+
+    setIsLoadingContent(true);
+    try {
+      const response = await apiClient.getSubmissionContent(submissionId);
+
+      if (response.error) {
+        toast.error("Failed to load content", {
+          description: response.error,
+        });
+      } else if (response.data) {
+        setMainDocumentText(response.data.main_document.text);
+        setAppendicesContent(response.data.appendices);
+      }
+    } catch (err) {
+      toast.error("Failed to load content");
+      console.error("Content fetch error:", err);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
+  // Fetch content when section is expanded (lazy loading)
+  const handleToggleContent = () => {
+    if (!isContentExpanded && mainDocumentText === "") {
+      fetchContent();
+    }
+    setIsContentExpanded(!isContentExpanded);
+  };
+
+  // Copy all original submission content
+  const handleCopyAll = async () => {
+    if (!submission) return;
+
+    let allContent = `ORIGINAL SUBMISSION\n${"=".repeat(80)}\n\n`;
+
+    // Main document
+    allContent += `MAIN DOCUMENT\n${"-".repeat(80)}\n`;
+    allContent += `Document: ${submission.document_name}\n`;
+    allContent += `Characters: ${mainDocumentText.length.toLocaleString()}\n\n`;
+    allContent += `${mainDocumentText}\n\n`;
+
+    // Appendices
+    if (appendicesContent.length > 0) {
+      appendicesContent.forEach((appendix: any, index: number) => {
+        allContent += `${"=".repeat(80)}\n\n`;
+        allContent += `APPENDIX ${index + 1}\n${"-".repeat(80)}\n`;
+        allContent += `File: ${appendix.fileName}\n`;
+        allContent += `Characters: ${appendix.text.length.toLocaleString()}\n\n`;
+        allContent += `${appendix.text}\n\n`;
+      });
+    }
+
+    await copyToClipboard(allContent, "original-all");
+  };
+
+  // Copy individual section
+  const handleCopySection = async (sectionTitle: string, fileName: string, text: string, sectionId: string) => {
+    const content = `${sectionTitle}\n${"-".repeat(80)}\n` +
+                   `File: ${fileName}\n` +
+                   `Characters: ${text.length.toLocaleString()}\n\n` +
+                   `${text}`;
+    await copyToClipboard(content, sectionId);
   };
 
   const handleDownloadMainDocument = async () => {
@@ -416,6 +488,153 @@ export default function SubmissionPage() {
             </div>
           </Alert>
         )}
+
+        {/* Original Submission Content */}
+        <Card className="mb-8">
+          <CardHeader
+            className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            onClick={handleToggleContent}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-xl">Original Submission</CardTitle>
+                <span className="px-2 py-0.5 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded">
+                  {1 + appendicesContent.length} {appendicesContent.length === 0 ? "document" : "documents"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyAll();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy All
+                </Button>
+                <ChevronDown
+                  className={`h-5 w-5 text-slate-500 transition-transform ${
+                    isContentExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+            </div>
+          </CardHeader>
+
+          {isContentExpanded && (
+            <CardContent className="space-y-6">
+              {isLoadingContent ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">Loading content...</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+              {/* Main Document */}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                        Main Document
+                      </h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {submission.document_name} • {mainDocumentText.length.toLocaleString()} characters
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleCopySection(
+                          "MAIN DOCUMENT",
+                          submission.document_name,
+                          mainDocumentText,
+                          "original-main"
+                        )
+                      }
+                    >
+                      {copiedSection === "original-main" ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-4 bg-white dark:bg-slate-900 max-h-[400px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap font-mono text-sm text-slate-700 dark:text-slate-300">
+                    {mainDocumentText}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Appendices */}
+              {appendicesContent.length > 0 &&
+                appendicesContent.map((appendix: any, index: number) => (
+                  <div
+                    key={index}
+                    className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"
+                  >
+                    <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                            Appendix {index + 1}
+                          </h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            {appendix.fileName} • {appendix.text.length.toLocaleString()} characters
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleCopySection(
+                              `APPENDIX ${index + 1}`,
+                              appendix.fileName,
+                              appendix.text,
+                              `original-appendix-${index}`
+                            )
+                          }
+                        >
+                          {copiedSection === `original-appendix-${index}` ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-white dark:bg-slate-900 max-h-[400px] overflow-y-auto">
+                      <pre className="whitespace-pre-wrap font-mono text-sm text-slate-700 dark:text-slate-300">
+                        {appendix.text}
+                      </pre>
+                    </div>
+                  </div>
+                ))}
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* Overall Score (if available) */}
         {feedback && feedback.overall_score !== null && (

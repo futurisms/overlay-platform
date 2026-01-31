@@ -23,6 +23,9 @@ exports.handler = async (event) => {
     dbClient = await createDbConnection();
 
     // Handle special routes
+    if (path.includes('/content')) {
+      return await handleGetContent(dbClient, pathParameters, userId);
+    }
     if (path.includes('/analysis')) {
       return await handleGetAnalysis(dbClient, pathParameters, userId);
     }
@@ -104,6 +107,125 @@ async function handleGet(dbClient, pathParameters, userId) {
     const result = await dbClient.query(query, [userId]);
 
     return { statusCode: 200, body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
+  }
+}
+
+/**
+ * Get submission content (main document + appendices text)
+ * GET /submissions/{id}/content
+ */
+async function handleGetContent(dbClient, pathParameters, userId) {
+  const submissionId = pathParameters?.submissionId || pathParameters?.id;
+
+  if (!submissionId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+  }
+
+  // Get submission metadata
+  const query = `
+    SELECT s.submission_id, s.document_name, s.s3_bucket, s.s3_key, s.appendix_files
+    FROM document_submissions s
+    WHERE s.submission_id = $1
+  `;
+  const result = await dbClient.query(query, [submissionId]);
+
+  if (result.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const submission = result.rows[0];
+  const { document_name, s3_bucket, s3_key, appendix_files } = submission;
+
+  try {
+    // Import S3 utilities
+    const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+    const s3Client = new S3Client({ region: process.env.AWS_REGION });
+
+    // Helper function to extract text from S3
+    const getTextFromS3 = async (bucket, key) => {
+      const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+      const response = await s3Client.send(command);
+      const stream = response.Body;
+
+      // Convert stream to buffer
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      const buffer = Buffer.concat(chunks);
+
+      // Detect file type and extract text
+      const fileExtension = key.split('.').pop().toLowerCase();
+
+      if (fileExtension === 'docx') {
+        const mammoth = require('mammoth');
+        const result = await mammoth.extractRawText({ buffer });
+        return result.value;
+      } else if (fileExtension === 'pdf') {
+        const pdfParse = require('pdf-parse');
+        const data = await pdfParse(buffer);
+        return data.text;
+      } else {
+        return buffer.toString('utf-8');
+      }
+    };
+
+    // 1. Get main document content
+    console.log(`[Content] Fetching main document: ${s3_key}`);
+    const mainDocumentText = await getTextFromS3(s3_bucket, s3_key);
+    console.log(`[Content] Main document extracted: ${mainDocumentText.length} characters`);
+
+    // 2. Get appendices content
+    const appendicesArray = appendix_files || [];
+    const appendicesContent = [];
+
+    if (appendicesArray.length > 0) {
+      console.log(`[Content] Fetching ${appendicesArray.length} appendices`);
+
+      for (const appendix of appendicesArray) {
+        try {
+          const appendixText = await getTextFromS3(s3_bucket, appendix.s3_key);
+          console.log(`[Content] Appendix ${appendix.upload_order} extracted: ${appendixText.length} characters`);
+
+          appendicesContent.push({
+            fileName: appendix.file_name,
+            text: appendixText,
+            uploadOrder: appendix.upload_order,
+          });
+        } catch (error) {
+          console.error(`[Content] Error extracting appendix ${appendix.upload_order}:`, error);
+          appendicesContent.push({
+            fileName: appendix.file_name,
+            text: '',
+            uploadOrder: appendix.upload_order,
+            error: 'Failed to extract content',
+          });
+        }
+      }
+
+      // Sort by upload order
+      appendicesContent.sort((a, b) => a.uploadOrder - b.uploadOrder);
+    }
+
+    // Return structured response
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        submission_id: submissionId,
+        main_document: {
+          name: document_name,
+          text: mainDocumentText,
+        },
+        appendices: appendicesContent,
+      }),
+    };
+
+  } catch (error) {
+    console.error('[Content] Error fetching content:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Failed to fetch submission content', details: error.message }),
+    };
   }
 }
 

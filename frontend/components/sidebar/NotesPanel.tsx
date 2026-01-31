@@ -52,12 +52,12 @@ export function NotesPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-4 overflow-hidden">
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Type your notes here or right-click selected text to add it. Notes persist across all pages."
-          className="h-full min-h-[300px] resize-none focus-visible:ring-1"
+          className="h-full resize-none focus-visible:ring-1 overflow-y-auto"
         />
       </div>
 

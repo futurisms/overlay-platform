@@ -181,6 +181,14 @@ class ApiClient {
     return this.request<{ download_url: string; file_name: string; expires_in: number }>(`/submissions/${submissionId}/download-appendix/${appendixOrder}`);
   }
 
+  async getSubmissionContent(submissionId: string) {
+    return this.request<{
+      submission_id: string;
+      main_document: { name: string; text: string };
+      appendices: Array<{ fileName: string; text: string; uploadOrder: number }>;
+    }>(`/submissions/${submissionId}/content`);
+  }
+
   // Answers endpoints
   async getAnswers(submissionId: string) {
     return this.request<{ questions: any[]; total: number }>(`/submissions/${submissionId}/answers`);

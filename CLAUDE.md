@@ -42,8 +42,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Overlay Platform is an AI-powered document review and evaluation system with a Next.js frontend and AWS Lambda backend. The system processes documents through a 6-agent AI workflow that provides structured feedback based on configurable evaluation criteria.
 
-**Current Version**: v1.5 (Complete Notes System with Database Persistence, Word Export, Full CRUD)
-**Release Date**: January 29, 2026
+**Current Version**: v1.6 (Original Submission Content Viewer)
+**Release Date**: January 30, 2026
 **Status**: Production Ready
 
 ## Architecture
@@ -427,6 +427,102 @@ CREATE TRIGGER update_user_notes_updated_at
 - Auto-populate `ai_summary` field using Claude API
 - Display in blue card on note detail page
 
+### Original Submission Content Viewer (v1.6)
+
+**Purpose**: Allows users to view and copy the full text content of submitted documents and appendices directly on the submission detail page, without needing to download files.
+
+**Architecture**:
+- Backend endpoint fetches documents from S3 and extracts text
+- Frontend displays content in expandable section with lazy loading
+- Content only fetched when user expands the section (performance optimization)
+
+**Backend Endpoint** (`GET /submissions/{id}/content`):
+```javascript
+// Returns structured JSON with decoded text content
+{
+  submission_id: "uuid",
+  main_document: {
+    name: "document.pdf",
+    text: "extracted text content..."
+  },
+  appendices: [
+    {
+      fileName: "appendix1.pdf",
+      text: "extracted text...",
+      uploadOrder: 1
+    }
+  ]
+}
+```
+
+**Text Extraction**:
+- PDF files: Uses `pdf-parse` library
+- DOCX files: Uses `mammoth` library
+- Plain text: Direct UTF-8 decoding
+- Handles multiple file formats automatically based on S3 key extension
+
+**Frontend Component** (`frontend/app/submission/[id]/page.tsx`):
+- **Expandable section**: Collapsed by default, positioned before "Overall Analysis Score"
+- **Document count badge**: Shows total documents (e.g., "2 documents")
+- **Lazy loading**: Content fetched only when section is expanded
+- **Loading indicator**: Shown during content fetch
+- **Copy functionality**:
+  - "Copy All" button (blue, prominent, always visible in header)
+  - Individual copy buttons for main document and each appendix
+  - Formatted copy output with section headers and character counts
+- **Display features**:
+  - Monospace font for proper text formatting
+  - Character counts for each section
+  - Max height (400px) with internal scrolling per section
+  - Visual feedback (checkmarks) when content copied
+
+**Copy Format Example**:
+```
+ORIGINAL SUBMISSION
+================================================================================
+
+MAIN DOCUMENT
+--------------------------------------------------------------------------------
+Document: proposal.txt
+Characters: 1,234
+
+[main document text]
+
+================================================================================
+
+APPENDIX 1
+--------------------------------------------------------------------------------
+File: references.pdf
+Characters: 567
+
+[appendix 1 text]
+```
+
+**API Client Method** (`frontend/lib/api-client.ts`):
+```typescript
+async getSubmissionContent(submissionId: string) {
+  return this.request<{
+    submission_id: string;
+    main_document: { name: string; text: string };
+    appendices: Array<{ fileName: string; text: string; uploadOrder: number }>;
+  }>(`/submissions/${submissionId}/content`);
+}
+```
+
+**Implementation Details**:
+- Content fetching uses existing `getDocumentFromS3` pattern from Lambda Layer
+- S3 bucket and keys retrieved from `document_submissions` table
+- Appendices sorted by `upload_order` field
+- Error handling: Shows toast notifications on failure
+- State management: Separate state for content, loading, and expansion
+- No caching: Fresh content fetched each time section is expanded
+
+**Performance Considerations**:
+- Lazy loading reduces initial page load time
+- Content only fetched on user action (expand)
+- Large documents may take 2-5 seconds to load (shows loading indicator)
+- Consider future caching if performance becomes an issue
+
 ### Git Workflow
 
 **IMPORTANT**: When committing changes:
@@ -466,6 +562,56 @@ After deployment, run through:
 6. **Feedback Display**: Check scores, strengths, weaknesses, recommendations
 
 7. **Download**: Test main document and appendix downloads
+
+### Original Submission Content Viewer (v1.6)
+
+**Viewing Original Content**
+8. Navigate to any completed submission detail page
+9. Locate "Original Submission" section (positioned before "Overall Analysis Score")
+10. Verify section shows document count badge (e.g., "2 documents")
+11. Verify "Copy All" button is visible in header (blue, prominent)
+12. Click header to expand section
+13. Verify loading indicator appears
+14. Wait for content to load (2-5 seconds for large documents)
+
+**Content Display**
+15. Verify main document section displays:
+    - Document name
+    - Character count
+    - Full text content in monospace font
+    - "Copy" button
+16. If submission has appendices, verify each appendix section displays:
+    - "Appendix N" header
+    - File name
+    - Character count
+    - Full text content
+    - Individual "Copy" button
+17. Verify each section has max height with internal scrolling
+18. Test scrolling within content areas
+
+**Copy Functionality**
+19. Click "Copy All" button
+20. Verify success toast appears
+21. Paste into text editor and verify format:
+    - "ORIGINAL SUBMISSION" header with separator
+    - "MAIN DOCUMENT" section with metadata
+    - Full main document text
+    - Each appendix with "APPENDIX N" header and separator
+    - Proper formatting with character counts
+22. Click individual "Copy" button on main document
+23. Verify checkmark appears temporarily
+24. Paste and verify single section copied with header
+25. Click individual "Copy" button on each appendix
+26. Verify each copies correctly with formatted headers
+
+**Edge Cases**
+27. Test with submission that has only main document (no appendices)
+28. Test with submission that has multiple appendices (3-5)
+29. Test expanding/collapsing section multiple times
+30. Verify content is re-fetched each time (no stale cache)
+31. Test with very long documents (10,000+ characters)
+32. Test with documents containing Unicode characters
+33. Test error handling: manually trigger API error and verify toast notification
 
 ### Notes Feature (v1.5 Complete System)
 
@@ -580,14 +726,28 @@ After deployment, run through:
 
 ## Project Status
 
-**Version**: v1.5 - Complete Notes System (January 29, 2026)
-**Backend**: ✅ Fully deployed and operational (10 API handlers)
-**Database**: ✅ v1.5 schema with appendices + notes support (21 tables, 127 indexes)
+**Version**: v1.6 - Original Submission Content Viewer (January 30, 2026)
+**Backend**: ✅ Fully deployed and operational (10 API handlers + content endpoint)
+**Database**: ✅ v1.6 schema with appendices + notes support (21 tables, 127 indexes)
 **Frontend**: ⚠️ Localhost only (production deployment needed)
 **AI Workflow**: ✅ 6 agents processing submissions
 **Notes Feature**: ✅ All phases complete (sidebar, text selection, database persistence, saved library, Word export, full CRUD)
+**Content Viewer**: ✅ Expandable section with lazy-loaded S3 content extraction and copy functionality
 
 ### Version History
+
+**v1.6** (January 30, 2026) - Original Submission Content Viewer
+- ✅ New backend endpoint: `GET /submissions/{id}/content`
+- ✅ Expandable "Original Submission" section on submission detail page
+- ✅ Lazy-loaded content fetching from S3
+- ✅ Text extraction from PDF, DOCX, and plain text files
+- ✅ Copy functionality: "Copy All" and individual section copy
+- ✅ Formatted copy output with headers and character counts
+- ✅ Monospace display with scrollable sections
+- ✅ Visual feedback (checkmarks) when content copied
+- Features: View and copy original document text without downloading
+- Performance: Lazy loading, loading indicators, error handling
+- Status: Production Ready
 
 **v1.5** (January 29, 2026) - Complete Notes System
 - ✅ Phase 1: Right sidebar with localStorage persistence
