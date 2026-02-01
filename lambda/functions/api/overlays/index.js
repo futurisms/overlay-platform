@@ -67,7 +67,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     const overlay = overlayResult.rows[0];
     // Map database fields to frontend-expected fields
     overlay.criteria = criteriaResult.rows.map(c => ({
-      criterion_id: c.criteria_id,  // Map criteria_id to criterion_id
+      criteria_id: c.criteria_id,    // Use consistent criteria_id field name
       name: c.name,
       description: c.description,
       category: c.criterion_type,    // Map criterion_type to category
