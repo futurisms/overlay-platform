@@ -507,7 +507,7 @@ export default function SessionPage() {
                 <div className="space-y-4">
                   {overlay.criteria.map((criterion: any, index: number) => (
                     <div
-                      key={criterion.criterion_id || index}
+                      key={criterion.criteria_id || index}
                       className="border border-slate-200 dark:border-slate-700 rounded-lg p-4"
                     >
                       <div className="flex items-start justify-between mb-2">

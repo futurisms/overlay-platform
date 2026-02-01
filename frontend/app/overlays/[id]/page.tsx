@@ -14,7 +14,7 @@ import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
 
 interface Criterion {
-  criterion_id: string;
+  criteria_id: string;
   name: string;
   description: string;
   weight: number;
@@ -113,7 +113,7 @@ export default function EditOverlayPage() {
         ...criteria,
         {
           ...newCriterion,
-          criterion_id: `temp-${Date.now()}`, // Temporary ID, backend will assign real one
+          criteria_id: `temp-${Date.now()}`, // Temporary ID, backend will assign real one
           is_active: true,
         },
       ];
@@ -143,7 +143,7 @@ export default function EditOverlayPage() {
   };
 
   const handleStartEdit = (criterion: Criterion) => {
-    setEditingId(criterion.criterion_id);
+    setEditingId(criterion.criteria_id);
     setEditForm({ ...criterion });
     setError(null);
     setSuccess(null);
@@ -167,7 +167,7 @@ export default function EditOverlayPage() {
 
     try {
       const updatedCriteria = criteria.map((c) =>
-        c.criterion_id === criterionId ? { ...c, ...editForm } : c
+        c.criteria_id === criterionId ? { ...c, ...editForm } : c
       );
 
       const result = await apiClient.updateOverlay(overlayId, {
@@ -197,7 +197,7 @@ export default function EditOverlayPage() {
     setSuccess(null);
 
     try {
-      const updatedCriteria = criteria.filter((c) => c.criterion_id !== criterionId);
+      const updatedCriteria = criteria.filter((c) => c.criteria_id !== criterionId);
 
       const result = await apiClient.updateOverlay(overlayId, {
         criteria: updatedCriteria,
@@ -429,8 +429,8 @@ export default function EditOverlayPage() {
             ) : (
               <div className="space-y-4">
                 {criteria.map((criterion) => (
-                  <Card key={criterion.criterion_id} className="border-slate-200">
-                    {editingId === criterion.criterion_id ? (
+                  <Card key={criterion.criteria_id} className="border-slate-200">
+                    {editingId === criterion.criteria_id ? (
                       // Edit Mode
                       <CardContent className="pt-6 space-y-4">
                         <div>
@@ -490,7 +490,7 @@ export default function EditOverlayPage() {
                         </div>
 
                         <div className="flex gap-2">
-                          <Button onClick={() => handleSaveEdit(criterion.criterion_id)}>
+                          <Button onClick={() => handleSaveEdit(criterion.criteria_id)}>
                             <Save className="mr-2 h-4 w-4" />
                             Save Changes
                           </Button>
@@ -537,7 +537,7 @@ export default function EditOverlayPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteCriterion(criterion.criterion_id)}
+                              onClick={() => handleDeleteCriterion(criterion.criteria_id)}
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
