@@ -12,6 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Loader2,
   ArrowLeft,
   Upload,
@@ -25,6 +35,7 @@ import {
   CheckCircle,
   Paperclip,
   X,
+  Trash2,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -71,6 +82,9 @@ export default function SessionPage() {
   const [successDocumentName, setSuccessDocumentName] = useState<string>("");
   const [appendixFiles, setAppendixFiles] = useState<File[]>([]);
   const [appendixError, setAppendixError] = useState<string | null>(null);
+  const [deleteSubmissionId, setDeleteSubmissionId] = useState<string | null>(null);
+  const [deleteSubmissionName, setDeleteSubmissionName] = useState<string>("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // Check authentication
@@ -332,6 +346,41 @@ export default function SessionPage() {
 
   const handleSubmissionClick = (submissionId: string) => {
     router.push(`/submission/${submissionId}`);
+  };
+
+  const handleDeleteClick = (event: React.MouseEvent, submissionId: string, documentName: string) => {
+    event.stopPropagation(); // Prevent navigation to submission detail
+    setDeleteSubmissionId(submissionId);
+    setDeleteSubmissionName(documentName);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteSubmissionId) return;
+
+    setIsDeleting(true);
+    try {
+      const result = await apiClient.deleteSubmission(deleteSubmissionId);
+
+      if (result.error) {
+        setError(`Failed to delete submission: ${result.error}`);
+      } else {
+        // Remove from local state
+        setSubmissions(prev => prev.filter(s => s.submission_id !== deleteSubmissionId));
+        // Close dialog
+        setDeleteSubmissionId(null);
+        setDeleteSubmissionName("");
+      }
+    } catch (err) {
+      setError("Failed to delete submission");
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteSubmissionId(null);
+    setDeleteSubmissionName("");
   };
 
   if (isLoading) {
@@ -932,6 +981,14 @@ export default function SessionPage() {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                        onClick={(e) => handleDeleteClick(e, submission.submission_id, submission.document_name)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -939,6 +996,39 @@ export default function SessionPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteSubmissionId !== null} onOpenChange={(open) => !open && handleDeleteCancel()}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Submission</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete <strong>{deleteSubmissionName}</strong>?
+                This action cannot be undone and will permanently remove the submission,
+                all associated feedback, and analysis results.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleDeleteCancel} disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

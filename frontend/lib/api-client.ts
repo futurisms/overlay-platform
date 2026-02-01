@@ -189,6 +189,12 @@ class ApiClient {
     }>(`/submissions/${submissionId}/content`);
   }
 
+  async deleteSubmission(submissionId: string) {
+    return this.request<{ message: string }>(`/submissions/${submissionId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Answers endpoints
   async getAnswers(submissionId: string) {
     return this.request<{ questions: any[]; total: number }>(`/submissions/${submissionId}/answers`);
