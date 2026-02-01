@@ -123,7 +123,7 @@ Respond in JSON format:
     // Parse JSON from response
     let scoringResult;
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
       scoringResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {
         criterionScores: [],
         overallFeedback: {

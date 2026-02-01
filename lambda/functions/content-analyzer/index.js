@@ -115,7 +115,7 @@ Please analyze the document content quality and respond in JSON format:
     // Parse JSON from response
     let analysisResult;
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
       analysisResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {
         overallScore: 85,
         findings: [],

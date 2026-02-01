@@ -123,7 +123,7 @@ Generate 3-5 targeted questions in JSON format:
 
       // Parse questions from response
       try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
         const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { questions: [] };
         questionsToSave = parsed.questions || [];
       } catch (parseError) {

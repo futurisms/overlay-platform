@@ -104,7 +104,7 @@ Rules:
     // Parse JSON from response
     let orchestrationResult;
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
       orchestrationResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {
         needsClarification: averageScore < 70,
         clarificationQuestions: [],
