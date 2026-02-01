@@ -1,0 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.useNotes = useNotes;
+const NotesContext_1 = require("@/contexts/NotesContext");
+function useNotes() {
+    return (0, NotesContext_1.useNotesContext)();
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidXNlTm90ZXMuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJ1c2VOb3Rlcy50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiOztBQUVBLDRCQUVDO0FBSkQsMERBQTBEO0FBRTFELFNBQWdCLFFBQVE7SUFDdEIsT0FBTyxJQUFBLDhCQUFlLEdBQUUsQ0FBQztBQUMzQixDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgdXNlTm90ZXNDb250ZXh0IH0gZnJvbSBcIkAvY29udGV4dHMvTm90ZXNDb250ZXh0XCI7XG5cbmV4cG9ydCBmdW5jdGlvbiB1c2VOb3RlcygpIHtcbiAgcmV0dXJuIHVzZU5vdGVzQ29udGV4dCgpO1xufVxuIl19

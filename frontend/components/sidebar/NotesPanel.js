@@ -1,0 +1,20 @@
+"use client";
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.NotesPanel = NotesPanel;
+const useNotes_1 = require("@/hooks/useNotes");
+const textarea_1 = require("@/components/ui/textarea");
+function NotesPanel() {
+    const { content, setContent, characterCount } = (0, useNotes_1.useNotes)();
+    return (<div className="flex flex-col h-full">
+      <div className="flex-1 p-4">
+        <textarea_1.Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Type your notes here... Notes are saved automatically and persist across all pages." className="h-full min-h-[300px] resize-none focus-visible:ring-1"/>
+      </div>
+      <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-2">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {characterCount} character{characterCount !== 1 ? 's' : ''}
+        </p>
+      </div>
+    </div>);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiTm90ZXNQYW5lbC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIk5vdGVzUGFuZWwudHN4Il0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLFlBQVksQ0FBQzs7O0FBS2IsZ0NBb0JDO0FBdkJELCtDQUE0QztBQUM1Qyx1REFBb0Q7QUFFcEQsU0FBZ0IsVUFBVTtJQUN4QixNQUFNLEVBQUUsT0FBTyxFQUFFLFVBQVUsRUFBRSxjQUFjLEVBQUUsR0FBRyxJQUFBLG1CQUFRLEdBQUUsQ0FBQztJQUUzRCxPQUFPLENBQ0wsQ0FBQyxHQUFHLENBQUMsU0FBUyxDQUFDLHNCQUFzQixDQUNuQztNQUFBLENBQUMsR0FBRyxDQUFDLFNBQVMsQ0FBQyxZQUFZLENBQ3pCO1FBQUEsQ0FBQyxtQkFBUSxDQUNQLEtBQUssQ0FBQyxDQUFDLE9BQU8sQ0FBQyxDQUNmLFFBQVEsQ0FBQyxDQUFDLENBQUMsQ0FBQyxFQUFFLEVBQUUsQ0FBQyxVQUFVLENBQUMsQ0FBQyxDQUFDLE1BQU0sQ0FBQyxLQUFLLENBQUMsQ0FBQyxDQUM1QyxXQUFXLENBQUMscUZBQXFGLENBQ2pHLFNBQVMsQ0FBQyx1REFBdUQsRUFFckU7TUFBQSxFQUFFLEdBQUcsQ0FDTDtNQUFBLENBQUMsR0FBRyxDQUFDLFNBQVMsQ0FBQywyREFBMkQsQ0FDeEU7UUFBQSxDQUFDLENBQUMsQ0FBQyxTQUFTLENBQUMsNENBQTRDLENBQ3ZEO1VBQUEsQ0FBQyxjQUFjLENBQUUsVUFBUyxDQUFDLGNBQWMsS0FBSyxDQUFDLENBQUMsQ0FBQyxDQUFDLEdBQUcsQ0FBQyxDQUFDLENBQUMsRUFBRSxDQUM1RDtRQUFBLEVBQUUsQ0FBQyxDQUNMO01BQUEsRUFBRSxHQUFHLENBQ1A7SUFBQSxFQUFFLEdBQUcsQ0FBQyxDQUNQLENBQUM7QUFDSixDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiXCJ1c2UgY2xpZW50XCI7XG5cbmltcG9ydCB7IHVzZU5vdGVzIH0gZnJvbSBcIkAvaG9va3MvdXNlTm90ZXNcIjtcbmltcG9ydCB7IFRleHRhcmVhIH0gZnJvbSBcIkAvY29tcG9uZW50cy91aS90ZXh0YXJlYVwiO1xuXG5leHBvcnQgZnVuY3Rpb24gTm90ZXNQYW5lbCgpIHtcbiAgY29uc3QgeyBjb250ZW50LCBzZXRDb250ZW50LCBjaGFyYWN0ZXJDb3VudCB9ID0gdXNlTm90ZXMoKTtcblxuICByZXR1cm4gKFxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBoLWZ1bGxcIj5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleC0xIHAtNFwiPlxuICAgICAgICA8VGV4dGFyZWFcbiAgICAgICAgICB2YWx1ZT17Y29udGVudH1cbiAgICAgICAgICBvbkNoYW5nZT17KGUpID0+IHNldENvbnRlbnQoZS50YXJnZXQudmFsdWUpfVxuICAgICAgICAgIHBsYWNlaG9sZGVyPVwiVHlwZSB5b3VyIG5vdGVzIGhlcmUuLi4gTm90ZXMgYXJlIHNhdmVkIGF1dG9tYXRpY2FsbHkgYW5kIHBlcnNpc3QgYWNyb3NzIGFsbCBwYWdlcy5cIlxuICAgICAgICAgIGNsYXNzTmFtZT1cImgtZnVsbCBtaW4taC1bMzAwcHhdIHJlc2l6ZS1ub25lIGZvY3VzLXZpc2libGU6cmluZy0xXCJcbiAgICAgICAgLz5cbiAgICAgIDwvZGl2PlxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJib3JkZXItdCBib3JkZXItc2xhdGUtMjAwIGRhcms6Ym9yZGVyLXNsYXRlLTcwMCBweC00IHB5LTJcIj5cbiAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LXNsYXRlLTUwMCBkYXJrOnRleHQtc2xhdGUtNDAwXCI+XG4gICAgICAgICAge2NoYXJhY3RlckNvdW50fSBjaGFyYWN0ZXJ7Y2hhcmFjdGVyQ291bnQgIT09IDEgPyAncycgOiAnJ31cbiAgICAgICAgPC9wPlxuICAgICAgPC9kaXY+XG4gICAgPC9kaXY+XG4gICk7XG59XG4iXX0=
