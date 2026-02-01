@@ -185,43 +185,70 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   }
 
   // Handle criteria updates if provided
-  if (criteria !== undefined) {
+  if (criteria !== undefined && Array.isArray(criteria)) {
     console.log(`Updating criteria for overlay ${overlayId}, received ${criteria.length} criteria`);
 
-    // Delete existing criteria
-    await dbClient.query('DELETE FROM evaluation_criteria WHERE overlay_id = $1', [overlayId]);
-
-    // Insert new criteria
+    // Process each criterion - UPDATE if criteria_id provided, INSERT if not
     for (let i = 0; i < criteria.length; i++) {
       const c = criteria[i];
 
-      // Map frontend fields to database schema
-      // Frontend sends: { name, description, category, weight (0-1), max_score }
-      // Database expects: { name, description, criterion_type, weight (max score) }
-      const criterionType = c.criterion_type || c.category || 'text';
-      const weightValue = c.max_score !== undefined ? c.max_score :
-                          (c.weight !== undefined && c.weight <= 1 ? c.weight * 100 : c.weight || 10);
+      // Check if criteria_id is provided (indicates UPDATE of existing criterion)
+      if (c.criteria_id) {
+        // UPDATE existing criterion - only update provided fields (criteria_text, max_score)
+        // This preserves foreign key relationships with evaluation_responses
+        const updateQuery = `
+          UPDATE evaluation_criteria
+          SET criteria_text = COALESCE($2, criteria_text),
+              max_score = COALESCE($3, max_score),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE criteria_id = $1 AND overlay_id = $4
+        `;
 
-      const insertQuery = `
-        INSERT INTO evaluation_criteria
-        (overlay_id, name, description, criterion_type, weight, is_required, display_order, criteria_text, max_score)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `;
-      await dbClient.query(insertQuery, [
-        overlayId,
-        c.name,
-        c.description || null,
-        criterionType,
-        weightValue,
-        c.is_required !== undefined ? c.is_required : false,
-        i,
-        c.criteria_text || null,  // Save detailed criteria text
-        c.max_score !== undefined ? c.max_score : weightValue,  // Save max_score
-      ]);
-      console.log(`  - Inserted criterion: ${c.name} (type: ${criterionType}, weight: ${weightValue})`);
+        const result = await dbClient.query(updateQuery, [
+          c.criteria_id,
+          c.criteria_text !== undefined ? c.criteria_text : null,
+          c.max_score !== undefined ? c.max_score : null,
+          overlayId
+        ]);
+
+        if (result.rowCount === 0) {
+          console.warn(`Criterion ${c.criteria_id} not found for overlay ${overlayId}`);
+        } else {
+          console.log(`  - Updated criterion: ${c.criteria_id} (criteria_text: ${c.criteria_text !== undefined ? 'updated' : 'unchanged'}, max_score: ${c.max_score !== undefined ? c.max_score : 'unchanged'})`);
+        }
+      } else {
+        // INSERT new criterion (if criteria_id not provided)
+        // Map frontend fields to database schema
+        // Frontend sends: { name, description, category, weight (0-1), max_score }
+        // Database expects: { name, description, criterion_type, weight (max score) }
+        const criterionType = c.criterion_type || c.category || 'text';
+        const weightValue = c.max_score !== undefined ? c.max_score :
+                            (c.weight !== undefined && c.weight <= 1 ? c.weight * 100 : c.weight || 10);
+
+        const insertQuery = `
+          INSERT INTO evaluation_criteria
+          (overlay_id, name, description, criterion_type, weight, is_required, display_order, criteria_text, max_score)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING criteria_id
+        `;
+
+        const result = await dbClient.query(insertQuery, [
+          overlayId,
+          c.name,
+          c.description || null,
+          criterionType,
+          weightValue,
+          c.is_required !== undefined ? c.is_required : false,
+          c.display_order !== undefined ? c.display_order : i,
+          c.criteria_text || null,
+          c.max_score !== undefined ? c.max_score : weightValue,
+        ]);
+
+        console.log(`  - Inserted new criterion: ${c.name} (id: ${result.rows[0].criteria_id}, type: ${criterionType}, weight: ${weightValue})`);
+      }
     }
 
-    console.log(`Successfully updated ${criteria.length} criteria for overlay ${overlayId}`);
+    console.log(`Successfully processed ${criteria.length} criteria for overlay ${overlayId}`);
   }
 
   return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
