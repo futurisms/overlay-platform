@@ -36,6 +36,7 @@ import {
   Paperclip,
   X,
   Trash2,
+  Edit,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -479,13 +480,27 @@ export default function SessionPage() {
         {session && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Evaluation Criteria
-              </CardTitle>
-              <CardDescription>
-                Your document will be evaluated against the "{session.overlay_name || 'overlay'}" criteria
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Evaluation Criteria
+                  </CardTitle>
+                  <CardDescription>
+                    Your document will be evaluated against the "{session.overlay_name || 'overlay'}" criteria
+                  </CardDescription>
+                </div>
+                {overlay?.overlay_id && (
+                  <Button
+                    onClick={() => router.push(`/overlays/${overlay.overlay_id}/edit-criteria`)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Criteria
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {overlay && overlay.criteria && overlay.criteria.length > 0 ? (
