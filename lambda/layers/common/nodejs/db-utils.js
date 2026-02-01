@@ -95,7 +95,9 @@ async function getEvaluationCriteria(client, overlayId) {
       weight,
       is_required,
       display_order,
-      validation_rules
+      validation_rules,
+      criteria_text,
+      max_score
     FROM evaluation_criteria
     WHERE overlay_id = $1
     ORDER BY display_order, name
@@ -107,7 +109,7 @@ async function getEvaluationCriteria(client, overlayId) {
   return result.rows.map(row => ({
     ...row,
     category: row.criterion_type || 'general',
-    max_score: 100, // Default max score
+    max_score: row.max_score || 100, // Use database value with fallback
     evaluation_method: 'ai_analysis',
   }));
 }
