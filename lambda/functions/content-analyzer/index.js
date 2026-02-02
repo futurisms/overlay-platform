@@ -50,8 +50,9 @@ exports.handler = async (event) => {
     const claude = await getClaudeClient();
 
     // Build analysis prompt
+    // description is single source of truth (updated from criteria_text on save)
     const criteriaText = criteria.map(c =>
-      `- ${c.name} (${c.category}): ${c.criteria_text || c.description} [Max Score: ${c.max_score}, Weight: ${c.weight}]`
+      `- ${c.name} (${c.category}): ${c.description} [Max Score: ${c.max_score}, Weight: ${c.weight}]`
     ).join('\n');
 
     const examplesText = examples.length > 0

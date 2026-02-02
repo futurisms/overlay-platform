@@ -69,8 +69,9 @@ exports.handler = async (event) => {
     const contextSection = contextInfo.length > 0 ? `\n\nDOCUMENT CONTEXT:\n${contextInfo.join('\n')}\n` : '';
 
     // Build comprehensive scoring prompt
+    // description is single source of truth (updated from criteria_text on save)
     const criteriaText = criteria.map(c =>
-      `- ${c.name} (${c.category}): ${c.criteria_text || c.description} [Max: ${c.max_score}, Weight: ${c.weight}, Method: ${c.evaluation_method}]`
+      `- ${c.name} (${c.category}): ${c.description} [Max: ${c.max_score}, Weight: ${c.weight}, Method: ${c.evaluation_method}]`
     ).join('\n');
 
     const prompt = `You are a document scoring agent. Score each evaluation criterion based on the analysis results and generate comprehensive feedback.${contextSection}

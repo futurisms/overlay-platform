@@ -194,11 +194,13 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
 
       // Check if criteria_id is provided (indicates UPDATE of existing criterion)
       if (c.criteria_id) {
-        // UPDATE existing criterion - only update provided fields (criteria_text, max_score)
+        // UPDATE existing criterion - update criteria_text, description, and max_score
+        // Copies criteria_text to description to maintain single source of truth
         // This preserves foreign key relationships with evaluation_responses
         const updateQuery = `
           UPDATE evaluation_criteria
           SET criteria_text = COALESCE($2, criteria_text),
+              description = COALESCE($2, description),
               max_score = COALESCE($3, max_score),
               updated_at = CURRENT_TIMESTAMP
           WHERE criteria_id = $1 AND overlay_id = $4
