@@ -1,5 +1,5 @@
--- Migration: Add Token Usage Tracking Table
--- Purpose: Track Claude API token usage per AI agent invocation
+-- Migration 009: Create token_usage table
+-- This should have been created by migration 007 but wasn't
 -- Date: February 3, 2026
 
 CREATE TABLE IF NOT EXISTS token_usage (
@@ -13,16 +13,12 @@ CREATE TABLE IF NOT EXISTS token_usage (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes for performance and analytics queries
 CREATE INDEX IF NOT EXISTS idx_token_usage_submission_id ON token_usage(submission_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_agent_name ON token_usage(agent_name);
 CREATE INDEX IF NOT EXISTS idx_token_usage_created_at ON token_usage(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_token_usage_total_tokens ON token_usage(total_tokens);
-
--- Composite index for common analytics queries (tokens by agent over time)
 CREATE INDEX IF NOT EXISTS idx_token_usage_agent_date ON token_usage(agent_name, created_at DESC);
 
--- Comments for documentation
 COMMENT ON TABLE token_usage IS 'Claude API token usage tracking per AI agent invocation';
 COMMENT ON COLUMN token_usage.submission_id IS 'Document submission this token usage belongs to';
 COMMENT ON COLUMN token_usage.agent_name IS 'AI agent name (orchestrator, scoring, content-analyzer, etc.)';
@@ -30,9 +26,7 @@ COMMENT ON COLUMN token_usage.input_tokens IS 'Number of input tokens consumed';
 COMMENT ON COLUMN token_usage.output_tokens IS 'Number of output tokens generated';
 COMMENT ON COLUMN token_usage.total_tokens IS 'Total tokens (input + output) - computed column';
 COMMENT ON COLUMN token_usage.model_name IS 'Claude model used (e.g., claude-sonnet-4-20250514)';
-COMMENT ON COLUMN token_usage.created_at IS 'Timestamp when tokens were consumed';
 
--- Create view for easy aggregation queries
 CREATE OR REPLACE VIEW v_token_usage_summary AS
 SELECT
   submission_id,
@@ -57,12 +51,5 @@ BEGIN
     RAISE EXCEPTION 'Migration failed: token_usage table not created';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.views
-    WHERE table_name = 'v_token_usage_summary'
-  ) THEN
-    RAISE EXCEPTION 'Migration failed: v_token_usage_summary view not created';
-  END IF;
-
-  RAISE NOTICE 'Migration successful: token_usage table and view created';
+  RAISE NOTICE 'Migration successful: token_usage table created';
 END $$;

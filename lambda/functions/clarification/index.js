@@ -8,6 +8,7 @@ const {
   createDbConnection,
   saveClarificationQuestions,
   getOverlayById,
+  saveTokenUsage,
 } = require('/opt/nodejs/db-utils');
 
 exports.handler = async (event) => {
@@ -120,6 +121,17 @@ Generate 3-5 targeted questions in JSON format:
       const model_used = llmResponse.model;
 
       console.log(`Token usage: ${input_tokens} input, ${output_tokens} output`);
+
+      // Save token usage to database
+      if (submissionId) {
+        await saveTokenUsage(dbClient, {
+          submissionId,
+          agentName: 'clarification',
+          inputTokens: input_tokens,
+          outputTokens: output_tokens,
+          modelName: model_used,
+        });
+      }
 
       // Parse questions from response
       try {

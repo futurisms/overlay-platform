@@ -11,6 +11,7 @@ const {
   getBestPracticeExamples,
   getDocumentFromS3,
   getDocumentWithAppendices,
+  saveTokenUsage,
 } = require('/opt/nodejs/db-utils');
 
 exports.handler = async (event) => {
@@ -112,6 +113,18 @@ Please analyze the document content quality and respond in JSON format:
     });
 
     console.log('Claude response received');
+    console.log(`Token usage: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`);
+
+    // Save token usage to database
+    if (submissionId) {
+      await saveTokenUsage(dbClient, {
+        submissionId,
+        agentName: 'content-analyzer',
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        modelName: response.model,
+      });
+    }
 
     // Parse JSON from response
     let analysisResult;

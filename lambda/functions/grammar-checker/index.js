@@ -4,7 +4,7 @@
  */
 
 const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
-const { getDocumentFromS3, getDocumentWithAppendices, createDbConnection, getOverlayById } = require('/opt/nodejs/db-utils');
+const { getDocumentFromS3, getDocumentWithAppendices, createDbConnection, getOverlayById, saveTokenUsage } = require('/opt/nodejs/db-utils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
 
@@ -88,6 +88,17 @@ Please analyze the document and respond in JSON format:
     const model_used = process.env.MODEL_ID;
     console.log('Bedrock response received');
     console.log(`Token usage: ${input_tokens} input, ${output_tokens} output`);
+
+    // Save token usage to database
+    if (submissionId) {
+      await saveTokenUsage(dbClient, {
+        submissionId,
+        agentName: 'grammar-checker',
+        inputTokens: input_tokens,
+        outputTokens: output_tokens,
+        modelName: model_used,
+      });
+    }
 
     // Parse JSON from response
     let grammarResult;

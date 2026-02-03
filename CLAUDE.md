@@ -830,3 +830,6 @@ Comprehensive docs in root directory:
 - `V1.4_IMPLEMENTATION_COMPLETE.md` - Multi-document feature technical guide
 - `CRITICAL_SCORE_FIX.md` - Score calculation methodology
 - `SESSION_DETAIL_FIX.md` - Session data visibility fix
+- `ANALYST_ROLE_DESIGN.md` - Two-role system with session access + invitations + notes filtering
+- `TOKEN_TRACKING_IMPLEMENTATION.md` - Claude API token usage tracking (operational, $0.13/submission)
+- `TOKEN_TRACKING_QUERIES.md` - 15 pre-built SQL queries for cost analysis

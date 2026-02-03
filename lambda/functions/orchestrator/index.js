@@ -4,7 +4,7 @@
  */
 
 const { getClaudeClient } = require('/opt/nodejs/llm-client');
-const { createDbConnection, getOverlayById } = require('/opt/nodejs/db-utils');
+const { createDbConnection, getOverlayById, saveTokenUsage } = require('/opt/nodejs/db-utils');
 
 exports.handler = async (event) => {
   console.log('Orchestrator started:', JSON.stringify(event));
@@ -100,6 +100,17 @@ Rules:
 
     console.log('Claude response received');
     console.log(`Token usage: ${input_tokens} input, ${output_tokens} output`);
+
+    // Save token usage to database
+    if (event.submissionId) {
+      await saveTokenUsage(dbClient, {
+        submissionId: event.submissionId,
+        agentName: 'orchestrator',
+        inputTokens: input_tokens,
+        outputTokens: output_tokens,
+        modelName: model_used,
+      });
+    }
 
     // Parse JSON from response
     let orchestrationResult;

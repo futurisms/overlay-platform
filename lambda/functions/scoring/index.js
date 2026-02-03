@@ -11,6 +11,7 @@ const {
   saveCriterionScores,
   updateSubmissionStatus,
   getOverlayById,
+  saveTokenUsage,
 } = require('/opt/nodejs/db-utils');
 
 exports.handler = async (event) => {
@@ -120,6 +121,18 @@ Respond in JSON format:
     });
 
     console.log('Claude response received');
+    console.log(`Token usage: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`);
+
+    // Save token usage to database
+    if (submissionId) {
+      await saveTokenUsage(dbClient, {
+        submissionId,
+        agentName: 'scoring',
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        modelName: response.model,
+      });
+    }
 
     // Parse JSON from response
     let scoringResult;

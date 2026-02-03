@@ -482,6 +482,74 @@ async function saveClarificationQuestions(client, questionsData) {
   return savedQuestions;
 }
 
+/**
+ * Save token usage data
+ * Records Claude API token consumption per agent invocation
+ * @param {Object} client - Database client
+ * @param {Object} tokenData - Token usage data
+ * @param {string} tokenData.submissionId - Document submission ID
+ * @param {string} tokenData.agentName - AI agent name (e.g., 'orchestrator', 'scoring')
+ * @param {number} tokenData.inputTokens - Input tokens consumed
+ * @param {number} tokenData.outputTokens - Output tokens generated
+ * @param {string} tokenData.modelName - Claude model used (e.g., 'claude-sonnet-4-20250514')
+ * @returns {Promise<Object>} - Saved token usage record
+ */
+async function saveTokenUsage(client, tokenData) {
+  const {
+    submissionId,
+    agentName,
+    inputTokens,
+    outputTokens,
+    modelName,
+  } = tokenData;
+
+  console.log(`[Token Tracking] Saving tokens for ${agentName}: input=${inputTokens}, output=${outputTokens}, model=${modelName}`);
+
+  const query = `
+    INSERT INTO token_usage (
+      submission_id,
+      agent_name,
+      input_tokens,
+      output_tokens,
+      model_name
+    ) VALUES ($1, $2, $3, $4, $5)
+    RETURNING token_usage_id, total_tokens, created_at
+  `;
+
+  try {
+    const result = await client.query(query, [
+      submissionId,
+      agentName,
+      inputTokens || 0,
+      outputTokens || 0,
+      modelName || null,
+    ]);
+
+    console.log(`[Token Tracking] Saved successfully: ${result.rows[0].total_tokens} total tokens`);
+    return result.rows[0];
+  } catch (error) {
+    console.error(`[Token Tracking] Error saving tokens for ${agentName}:`, error.message);
+    // Don't throw - token tracking should not break AI workflow
+    return null;
+  }
+}
+
+/**
+ * Get token usage summary for a submission
+ * @param {Object} client - Database client
+ * @param {string} submissionId - Document submission ID
+ * @returns {Promise<Object>} - Token usage summary
+ */
+async function getTokenUsageSummary(client, submissionId) {
+  const query = `
+    SELECT * FROM v_token_usage_summary
+    WHERE submission_id = $1
+  `;
+
+  const result = await client.query(query, [submissionId]);
+  return result.rows[0] || null;
+}
+
 module.exports = {
   createDbConnection,
   getOverlayById,
@@ -494,4 +562,6 @@ module.exports = {
   getDocumentFromS3,
   getDocumentWithAppendices,
   saveClarificationQuestions,
+  saveTokenUsage,
+  getTokenUsageSummary,
 };
