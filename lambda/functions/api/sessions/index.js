@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { canEdit, hasSessionAccess, getAccessibleSessions } = require('/opt/nodejs/permissions');
 
 exports.handler = async (event) => {
   console.log('Sessions Handler:', JSON.stringify(event));
@@ -54,6 +55,12 @@ async function handleGet(dbClient, pathParameters, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (sessionId) {
+    // Check if user has access to this session
+    const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
+    if (!hasAccess) {
+      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+    }
+
     // Get specific session with participants
     const sessionQuery = `
       SELECT s.session_id, s.overlay_id, s.name, s.description, s.status,
@@ -108,22 +115,22 @@ async function handleGet(dbClient, pathParameters, userId) {
 
     return { statusCode: 200, body: JSON.stringify(session) };
   } else {
-    // List user's sessions (only active, not archived)
-    const query = `
-      SELECT DISTINCT s.session_id, s.name, s.description, s.status,
-             s.created_at, o.name as overlay_name,
-             (SELECT COUNT(*) FROM session_participants WHERE session_id = s.session_id) as participant_count,
-             (SELECT COUNT(*) FROM document_submissions WHERE session_id = s.session_id) as submission_count
-      FROM review_sessions s
-      LEFT JOIN overlays o ON s.overlay_id = o.overlay_id
-      LEFT JOIN session_participants sp ON s.session_id = sp.session_id
-      WHERE (sp.user_id = $1 OR s.created_by = $1)
-        AND s.status = 'active'
-      ORDER BY s.created_at DESC
-    `;
-    const result = await dbClient.query(query, [userId]);
+    // List user's accessible sessions (admins see all, analysts see assigned)
+    const sessions = await getAccessibleSessions(dbClient, userId);
 
-    return { statusCode: 200, body: JSON.stringify({ sessions: result.rows, total: result.rows.length }) };
+    // Add participant and submission counts
+    for (const session of sessions) {
+      const countsQuery = `
+        SELECT
+          (SELECT COUNT(*) FROM session_participants WHERE session_id = $1) as participant_count,
+          (SELECT COUNT(*) FROM document_submissions WHERE session_id = $1) as submission_count
+      `;
+      const countsResult = await dbClient.query(countsQuery, [session.session_id]);
+      session.participant_count = parseInt(countsResult.rows[0].participant_count);
+      session.submission_count = parseInt(countsResult.rows[0].submission_count);
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ sessions, total: sessions.length }) };
   }
 }
 
@@ -148,6 +155,12 @@ async function handleGetAvailable(dbClient, userId) {
 
 async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
+
+  // Check if user has access to this session
+  const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
+  if (!hasAccess) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+  }
 
   const query = `
     SELECT ds.submission_id, ds.document_name, ds.status, ds.ai_analysis_status,
@@ -180,9 +193,20 @@ async function handleCreate(dbClient, requestBody, userId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'overlay_id and name required' }) };
   }
 
+  // Check permissions - only admins can create sessions
+  const userQuery = await dbClient.query('SELECT user_id, user_role, organization_id FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can create sessions' }) };
+  }
+
   // Get current user's organization
-  const orgQuery = await dbClient.query('SELECT organization_id FROM users WHERE user_id = $1', [userId]);
-  const orgId = orgQuery.rows[0]?.organization_id;
+  const orgId = user.organization_id;
 
   if (!orgId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'User organization not found' }) };
@@ -213,6 +237,18 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
+  // Check permissions - only admins can update sessions
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can update sessions' }) };
+  }
+
   const { name, description, status } = JSON.parse(requestBody);
 
   const query = `
@@ -239,6 +275,18 @@ async function handleDelete(dbClient, pathParameters, userId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
+  // Check permissions - only admins can delete sessions
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can delete sessions' }) };
+  }
+
   const query = `
     UPDATE review_sessions SET status = 'archived', updated_at = CURRENT_TIMESTAMP
     WHERE session_id = $1
@@ -258,6 +306,12 @@ async function handleGetSessionReport(dbClient, pathParameters, userId) {
 
   if (!sessionId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+  }
+
+  // Check if user has access to this session
+  const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
+  if (!hasAccess) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
   // Get session details
@@ -386,6 +440,12 @@ async function handleExportSession(dbClient, pathParameters, userId) {
 
   if (!sessionId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+  }
+
+  // Check if user has access to this session
+  const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
+  if (!hasAccess) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
   // Get all submissions with scores

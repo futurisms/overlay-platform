@@ -310,6 +310,26 @@ export class ComputeStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
+    // Invitations Handler
+    const invitationsHandler = new lambda.Function(this, 'InvitationsHandler', {
+      functionName: 'overlay-api-invitations',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/invitations'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: {
+        ...commonEnvironment,
+        FRONTEND_URL: 'http://localhost:3000', // TODO: Update for production
+      },
+      description: 'Handles analyst invitation system',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
     // ==========================================================================
     // IAM PERMISSIONS
     // ==========================================================================
@@ -329,6 +349,7 @@ export class ComputeStack extends cdk.Stack {
       submissionsHandler,
       queryResultsHandler,
       notesHandler,
+      invitationsHandler,
     ];
 
     // Grant all Lambdas access to secrets
@@ -572,6 +593,32 @@ export class ComputeStack extends cdk.Stack {
     noteIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(notesHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // ==========================================================================
+    // INVITATIONS ROUTES
+    // ==========================================================================
+
+    // /sessions/{sessionId}/invitations (create invitation - admin only)
+    const sessionInvitationsResource = sessionIdResource.addResource('invitations');
+    sessionInvitationsResource.addMethod('POST', new apigateway.LambdaIntegration(invitationsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /invitations (public routes for signup flow)
+    const invitationsResource = this.api.root.addResource('invitations');
+
+    // /invitations/{token} (get invitation details - public)
+    const invitationTokenResource = invitationsResource.addResource('{token}');
+    invitationTokenResource.addMethod('GET', new apigateway.LambdaIntegration(invitationsHandler), {
+      authorizationType: apigateway.AuthorizationType.NONE, // Public endpoint
+    });
+
+    // /invitations/{token}/accept (accept invitation - public)
+    const acceptInvitationResource = invitationTokenResource.addResource('accept');
+    acceptInvitationResource.addMethod('POST', new apigateway.LambdaIntegration(invitationsHandler), {
+      authorizationType: apigateway.AuthorizationType.NONE, // Public endpoint
     });
 
     // CloudFormation Outputs

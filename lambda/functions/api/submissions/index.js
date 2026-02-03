@@ -7,6 +7,7 @@ const { createDbConnection } = require('/opt/nodejs/db-utils');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { SFNClient, StartExecutionCommand } = require('@aws-sdk/client-sfn');
+const { canViewSubmission } = require('/opt/nodejs/permissions');
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
 const sfnClient = new SFNClient({ region: process.env.AWS_REGION });
@@ -86,8 +87,21 @@ async function handleGet(dbClient, pathParameters, userId) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
     }
 
-    // Ensure appendix_files is always an array (backward compatibility)
     const submission = result.rows[0];
+
+    // Check if user has permission to view this submission
+    const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+    const user = userQuery.rows[0];
+
+    if (!user) {
+      return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    }
+
+    if (!canViewSubmission(user, submission)) {
+      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+    }
+
+    // Ensure appendix_files is always an array (backward compatibility)
     submission.appendix_files = submission.appendix_files || [];
 
     return { statusCode: 200, body: JSON.stringify(submission) };
@@ -123,7 +137,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
 
   // Get submission metadata
   const query = `
-    SELECT s.submission_id, s.document_name, s.s3_bucket, s.s3_key, s.appendix_files
+    SELECT s.submission_id, s.document_name, s.s3_bucket, s.s3_key, s.appendix_files, s.submitted_by
     FROM document_submissions s
     WHERE s.submission_id = $1
   `;
@@ -134,6 +148,18 @@ async function handleGetContent(dbClient, pathParameters, userId) {
   }
 
   const submission = result.rows[0];
+
+  // Check if user has permission to view this submission
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+  }
   const { document_name, s3_bucket, s3_key, appendix_files } = submission;
 
   try {
@@ -385,6 +411,31 @@ async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
+  // Check if user has permission to update this submission
+  const checkQuery = `
+    SELECT submission_id, submitted_by
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const checkResult = await dbClient.query(checkQuery, [submissionId]);
+
+  if (checkResult.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const submission = checkResult.rows[0];
+
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only update your own submissions' }) };
+  }
+
   const { status, ai_analysis_status } = JSON.parse(requestBody);
 
   const query = `
@@ -413,6 +464,31 @@ async function handleDelete(dbClient, pathParameters, userId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
+  // Check if user has permission to delete this submission
+  const checkQuery = `
+    SELECT submission_id, submitted_by
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const checkResult = await dbClient.query(checkQuery, [submissionId]);
+
+  if (checkResult.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const submission = checkResult.rows[0];
+
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only delete your own submissions' }) };
+  }
+
   // Hard delete for submissions (could be soft delete if preferred)
   const query = `
     DELETE FROM document_submissions
@@ -433,7 +509,7 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
 
   // Get submission status first
   const submissionQuery = `
-    SELECT submission_id, ai_analysis_status, ai_analysis_completed_at
+    SELECT submission_id, ai_analysis_status, ai_analysis_completed_at, submitted_by
     FROM document_submissions
     WHERE submission_id = $1
   `;
@@ -444,6 +520,18 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
   }
 
   const submission = submissionResult.rows[0];
+
+  // Check if user has permission to view this submission
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+  }
 
   // If analysis is not complete, return status
   if (submission.ai_analysis_status !== 'completed') {
@@ -519,6 +607,31 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
 
   if (!submissionId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+  }
+
+  // Check if user has permission to view this submission
+  const submissionQuery = `
+    SELECT submission_id, submitted_by
+    FROM document_submissions
+    WHERE submission_id = $1
+  `;
+  const submissionResult = await dbClient.query(submissionQuery, [submissionId]);
+
+  if (submissionResult.rows.length === 0) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+  }
+
+  const submission = submissionResult.rows[0];
+
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
   }
 
   // Get AI analysis results (scoring agent saves to feedback_reports)
@@ -604,7 +717,7 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
 
   // Get submission S3 details
   const query = `
-    SELECT s3_bucket, s3_key, document_name
+    SELECT s3_bucket, s3_key, document_name, submitted_by
     FROM document_submissions
     WHERE submission_id = $1
   `;
@@ -614,7 +727,21 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
     return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
-  const { s3_bucket, s3_key, document_name } = result.rows[0];
+  const submission = result.rows[0];
+
+  // Check if user has permission to view this submission
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+  }
+
+  const { s3_bucket, s3_key, document_name } = submission;
 
   // Generate presigned URL (valid for 15 minutes)
   const command = new GetObjectCommand({
@@ -653,7 +780,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
 
   // Get submission S3 bucket and appendix files
   const query = `
-    SELECT s3_bucket, appendix_files
+    SELECT s3_bucket, appendix_files, submitted_by
     FROM document_submissions
     WHERE submission_id = $1
   `;
@@ -663,7 +790,21 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
     return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
-  const { s3_bucket, appendix_files } = result.rows[0];
+  const submission = result.rows[0];
+
+  // Check if user has permission to view this submission
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, submission)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+  }
+
+  const { s3_bucket, appendix_files } = submission;
   const appendices = appendix_files || [];
 
   // Find appendix by order
@@ -709,6 +850,7 @@ async function handleDownload(dbClient, pathParameters, userId) {
       ds.submission_id,
       ds.document_name,
       ds.submitted_at,
+      ds.submitted_by,
       u.first_name || ' ' || u.last_name as submitted_by_name,
       u.email as submitted_by_email,
       o.name as overlay_name,
@@ -730,6 +872,18 @@ async function handleDownload(dbClient, pathParameters, userId) {
   }
 
   const data = result.rows[0];
+
+  // Check if user has permission to view this submission
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canViewSubmission(user, { submitted_by: data.submitted_by })) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+  }
 
   // Get criterion scores
   const scoresQuery = `

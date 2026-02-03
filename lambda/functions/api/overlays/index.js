@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { canEdit } = require('/opt/nodejs/permissions');
 
 exports.handler = async (event) => {
   console.log('Overlays Handler:', JSON.stringify(event));
@@ -109,9 +110,20 @@ async function handleCreate(dbClient, requestBody, userId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Name and document_type required' }) };
   }
 
+  // Check permissions - only admins can create overlays
+  const userQuery = await dbClient.query('SELECT user_id, user_role, organization_id FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can create overlays' }) };
+  }
+
   // Get current user's organization
-  const orgQuery = await dbClient.query('SELECT organization_id FROM users WHERE user_id = $1', [userId]);
-  const orgId = orgQuery.rows[0]?.organization_id;
+  const orgId = user.organization_id;
 
   if (!orgId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'User organization not found' }) };
@@ -155,6 +167,18 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Overlay ID required' }) };
+  }
+
+  // Check permissions - only admins can edit overlays
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can edit overlays' }) };
   }
 
   const { name, description, document_type, configuration, is_active, criteria } = JSON.parse(requestBody);
@@ -260,6 +284,18 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Overlay ID required' }) };
+  }
+
+  // Check permissions - only admins can delete overlays
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (!canEdit(user)) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can delete overlays' }) };
   }
 
   const query = `
