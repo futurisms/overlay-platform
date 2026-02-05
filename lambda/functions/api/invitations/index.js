@@ -11,6 +11,12 @@
 const { createDbConnection } = require('/opt/nodejs/db-utils');
 const { isAdmin } = require('/opt/nodejs/permissions');
 const crypto = require('crypto');
+const {
+  CognitoIdentityProviderClient,
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
+  AdminAddUserToGroupCommand,
+} = require('@aws-sdk/client-cognito-identity-provider');
 
 /**
  * Generate secure random token for invitation
@@ -127,7 +133,7 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
     const existingUserId = existingUserQuery.rows[0].user_id;
 
     const accessCheck = await dbClient.query(
-      'SELECT 1 FROM session_access WHERE user_id = $1 AND session_id = $2',
+      'SELECT 1 FROM session_participants WHERE user_id = $1 AND session_id = $2',
       [existingUserId, sessionId]
     );
 
@@ -136,15 +142,19 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
         statusCode: 200,
         body: JSON.stringify({
           message: 'User already has access to this session',
-          existing: true
+          user: {
+            user_id: existingUserId,
+            email: email,
+            role: existingUserQuery.rows[0].user_role
+          }
         })
       };
     }
 
     // Grant access to existing user
     await dbClient.query(
-      'INSERT INTO session_access (user_id, session_id, granted_by) VALUES ($1, $2, $3)',
-      [existingUserId, sessionId, userId]
+      'INSERT INTO session_participants (user_id, session_id, invited_by, role, status) VALUES ($1, $2, $3, $4, $5)',
+      [existingUserId, sessionId, userId, 'reviewer', 'active']
     );
 
     console.log(`Granted access to existing user: ${email} for session ${sessionId}`);
@@ -153,7 +163,11 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
       statusCode: 200,
       body: JSON.stringify({
         message: 'Access granted to existing user',
-        existing: true
+        user: {
+          user_id: existingUserId,
+          email: email,
+          role: existingUserQuery.rows[0].user_role
+        }
       })
     };
   }
@@ -281,14 +295,27 @@ async function handleGetInvitation(dbClient, token) {
     };
   }
 
+  // Get invited_by user name for display
+  const inviterQuery = await dbClient.query(
+    'SELECT first_name, last_name FROM users WHERE user_id = (SELECT invited_by FROM user_invitations WHERE token = $1)',
+    [token]
+  );
+  const inviterRow = inviterQuery.rows[0];
+  const invitedByName = inviterRow
+    ? `${inviterRow.first_name || ''} ${inviterRow.last_name || ''}`.trim() || 'Administrator'
+    : 'Administrator';
+
   return {
     statusCode: 200,
     body: JSON.stringify({
-      email: invitation.email,
-      sessionId: invitation.session_id,
-      sessionName: invitation.session_name,
-      sessionDescription: invitation.session_description,
-      expiresAt: invitation.expires_at
+      invitation: {
+        email: invitation.email,
+        session_id: invitation.session_id,
+        session_name: invitation.session_name,
+        session_description: invitation.session_description,
+        invited_by_name: invitedByName,
+        expires_at: invitation.expires_at
+      }
     })
   };
 }
@@ -376,10 +403,6 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
     };
   }
 
-  // TODO: Create Cognito user with analyst role
-  // For now, create database user record only
-  // In production, integrate with Cognito User Pool
-
   // Get organization from invited_by user
   const adminQuery = await dbClient.query(
     'SELECT organization_id FROM users WHERE user_id = $1',
@@ -395,26 +418,113 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
     };
   }
 
-  // Create user account (analyst role)
+  // Create Cognito user
+  const cognitoClient = new CognitoIdentityProviderClient({
+    region: process.env.AWS_REGION || 'eu-west-1'
+  });
+  const userPoolId = process.env.USER_POOL_ID;
+
+  if (!userPoolId) {
+    console.error('USER_POOL_ID environment variable not set');
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Authentication service configuration error' })
+    };
+  }
+
+  try {
+    console.log(`Creating Cognito user for ${invitation.email}...`);
+
+    // Step 1: Create Cognito user
+    const createUserCommand = new AdminCreateUserCommand({
+      UserPoolId: userPoolId,
+      Username: invitation.email,
+      UserAttributes: [
+        { Name: 'email', Value: invitation.email },
+        { Name: 'email_verified', Value: 'true' },
+        { Name: 'given_name', Value: firstName },
+        { Name: 'family_name', Value: lastName },
+      ],
+      TemporaryPassword: password,
+      MessageAction: 'SUPPRESS', // Don't send welcome email
+      DesiredDeliveryMediums: ['EMAIL'],
+    });
+
+    const createUserResponse = await cognitoClient.send(createUserCommand);
+    console.log('✅ Cognito user created');
+
+    // Step 2: Set permanent password
+    const setPasswordCommand = new AdminSetUserPasswordCommand({
+      UserPoolId: userPoolId,
+      Username: invitation.email,
+      Password: password,
+      Permanent: true,
+    });
+
+    await cognitoClient.send(setPasswordCommand);
+    console.log('✅ Password set as permanent');
+
+    // Step 3: Add to document_admin group (analysts can review submissions)
+    const addToGroupCommand = new AdminAddUserToGroupCommand({
+      UserPoolId: userPoolId,
+      Username: invitation.email,
+      GroupName: 'document_admin',
+    });
+
+    await cognitoClient.send(addToGroupCommand);
+    console.log('✅ User added to document_admin group');
+
+  } catch (error) {
+    console.error('Failed to create Cognito user:', error);
+
+    // Handle specific Cognito errors
+    if (error.name === 'UsernameExistsException') {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'User already exists in authentication system',
+          message: 'Please login instead or contact support'
+        })
+      };
+    }
+
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: 'Failed to create user account',
+        message: error.message
+      })
+    };
+  }
+
+  // Create user account in database (analyst role)
+  // Note: password is managed by Cognito, storing placeholder hash
+  const placeholderPasswordHash = 'COGNITO_AUTH'; // Placeholder since auth is via Cognito
+  const username = invitation.email; // Use email as username
+
   const userResult = await dbClient.query(
     `INSERT INTO users (
       email,
+      username,
+      password_hash,
       first_name,
       last_name,
       user_role,
-      organization_id
-    ) VALUES ($1, $2, $3, 'analyst', $4)
-    RETURNING user_id, email, first_name, last_name, user_role`,
-    [invitation.email, firstName, lastName, organizationId]
+      organization_id,
+      email_verified,
+      is_active
+    ) VALUES ($1, $2, $3, $4, $5, 'analyst', $6, true, true)
+    RETURNING user_id, email, username, first_name, last_name, user_role`,
+    [invitation.email, username, placeholderPasswordHash, firstName, lastName, organizationId]
   );
 
   const newUser = userResult.rows[0];
 
   // Grant session access
   await dbClient.query(
-    `INSERT INTO session_access (user_id, session_id, granted_by)
-     VALUES ($1, $2, $3)`,
-    [newUser.user_id, invitation.session_id, invitation.invited_by]
+    `INSERT INTO session_participants (user_id, session_id, invited_by, role, status)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [newUser.user_id, invitation.session_id, invitation.invited_by, 'reviewer', 'active']
   );
 
   // Mark invitation as accepted

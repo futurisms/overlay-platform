@@ -42,9 +42,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Overlay Platform is an AI-powered document review and evaluation system with a Next.js frontend and AWS Lambda backend. The system processes documents through a 6-agent AI workflow that provides structured feedback based on configurable evaluation criteria.
 
-**Current Version**: v1.6 (Original Submission Content Viewer)
-**Release Date**: January 30, 2026
+**Current Version**: v1.7 (Analyst Access System Fixed)
+**Release Date**: February 5, 2026
 **Status**: Production Ready
+
+### Two-Role System
+
+**System Admin** (`system_admin` Cognito group, `admin` PostgreSQL role):
+- Full CRUD access to all resources
+- Can create/edit/delete sessions, overlays, criteria
+- Can invite analysts to sessions
+- Sees all submissions across all users
+
+**Analyst** (`document_admin` Cognito group, `analyst` PostgreSQL role):
+- Restricted to assigned sessions via `session_participants` table
+- Can only view/edit their own submissions
+- Cannot create/edit/delete sessions or overlays
+- Dashboard and session detail pages filtered to show only their submissions
 
 ## Architecture
 
@@ -206,6 +220,32 @@ ADD COLUMN new_field VARCHAR(255);
 ALTER TABLE document_submissions
 DROP COLUMN IF EXISTS new_field;
 ```
+
+## Debugging with CloudWatch Logs
+
+**Viewing Lambda Logs**:
+```bash
+# Tail logs in real-time (last 5 minutes)
+export MSYS_NO_PATHCONV=1 && export MSYS2_ARG_CONV_EXCL="*" && \
+aws logs tail /aws/lambda/overlay-api-sessions --since 5m --format short
+
+# Other Lambda log groups:
+# /aws/lambda/overlay-api-submissions
+# /aws/lambda/overlay-api-invitations
+# /aws/lambda/overlay-api-users
+# /aws/lambda/overlay-database-migration
+```
+
+**Key Log Patterns**:
+- `ERROR: User not found in database` - User exists in Cognito but not PostgreSQL
+- `User query result: []` - PostgreSQL query returned no user
+- `Branch: ADMIN` or `Branch: ANALYST` - Shows which permission path was taken
+- `Sessions returned: 0` - No sessions found for user (check session_participants)
+
+**Common Issues in Logs**:
+1. **User ID mismatch**: Log shows Cognito `sub` but PostgreSQL query returns empty
+2. **Missing permissions**: 403 errors in CloudWatch indicate permission check failures
+3. **SQL errors**: Look for constraint violations or missing columns
 
 ## Deployment Workflow
 
@@ -523,6 +563,140 @@ async getSubmissionContent(submissionId: string) {
 - Large documents may take 2-5 seconds to load (shows loading indicator)
 - Consider future caching if performance becomes an issue
 
+### Analyst Invitation and Signup System
+
+**CRITICAL**: The analyst signup process must create users in BOTH Cognito and PostgreSQL with matching user_ids.
+
+**Invitation Flow**:
+1. Admin creates invitation via `/invitations` endpoint
+   - Creates entry in `user_invitations` table with `session_id` and unique token
+   - Sends email with signup link: `/signup?token={token}`
+
+2. Analyst signs up via invitation link
+   - Backend validates token, retrieves `session_id` from invitation
+   - **MUST create Cognito user first** using `AdminCreateUserCommand`
+   - **MUST use Cognito's returned user_id (sub)** as PostgreSQL user_id
+   - Creates PostgreSQL user with: `user_id = cognito_sub`, `user_role = 'analyst'`
+   - Creates `session_participants` entry: `(user_id, session_id, role='reviewer', status='active')`
+   - Updates invitation: `accepted_at = NOW(), accepted_by = user_id`
+
+3. Analyst logs in
+   - Cognito authenticates, returns JWT with `sub` claim (user_id)
+   - Backend queries: `SELECT * FROM users WHERE user_id = {sub from JWT}`
+   - Permissions system uses `user_role` from PostgreSQL
+
+**Critical Implementation in `lambda/functions/api/invitations/index.js`**:
+```javascript
+// Step 1: Create Cognito user FIRST
+const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' });
+const createUserCommand = new AdminCreateUserCommand({
+  UserPoolId: process.env.USER_POOL_ID,
+  Username: email,
+  UserAttributes: [
+    { Name: 'email', Value: email },
+    { Name: 'email_verified', Value: 'true' },
+    { Name: 'given_name', Value: firstName },
+    { Name: 'family_name', Value: lastName },
+  ],
+  TemporaryPassword: password,
+  MessageAction: 'SUPPRESS',
+});
+const cognitoUser = await cognitoClient.send(createUserCommand);
+
+// Step 2: Set permanent password
+await cognitoClient.send(new AdminSetUserPasswordCommand({
+  UserPoolId: process.env.USER_POOL_ID,
+  Username: email,
+  Password: password,
+  Permanent: true,
+}));
+
+// Step 3: Add to document_admin group
+await cognitoClient.send(new AdminAddUserToGroupCommand({
+  UserPoolId: process.env.USER_POOL_ID,
+  Username: email,
+  GroupName: 'document_admin',
+}));
+
+// Step 4: Create PostgreSQL user with SAME user_id from Cognito
+const userId = cognitoUser.User.Username; // This is the Cognito sub
+await dbClient.query(
+  `INSERT INTO users (user_id, email, username, first_name, last_name, user_role, password_hash)
+   VALUES ($1, $2, $3, $4, $5, 'analyst', 'COGNITO_AUTH')`,
+  [userId, email, email, firstName, lastName]
+);
+
+// Step 5: Create session_participants entry
+await dbClient.query(
+  `INSERT INTO session_participants (user_id, session_id, invited_by, role, status)
+   VALUES ($1, $2, $3, 'reviewer', 'active')`,
+  [userId, invitation.session_id, invitation.invited_by]
+);
+```
+
+**Required Environment Variables**:
+- `USER_POOL_ID`: Cognito User Pool ID (eu-west-1_lC25xZ8s6)
+
+**Required IAM Permissions**:
+```typescript
+invitationsHandler.addToRolePolicy(new iam.PolicyStatement({
+  actions: [
+    'cognito-idp:AdminCreateUser',
+    'cognito-idp:AdminSetUserPassword',
+    'cognito-idp:AdminAddUserToGroup',
+  ],
+  resources: [props.userPool.userPoolArn],
+}));
+```
+
+**Password Requirements**:
+- Minimum 12 characters
+- Must contain: uppercase, lowercase, number, special character
+
+### Role-Based Access Control (RBAC)
+
+**Backend Implementation** (`lambda/layers/common/nodejs/permissions.js`):
+
+All permission checks query the `users` table to get `user_role`, then:
+
+**Sessions Access**:
+- Admins: See all active sessions
+- Analysts: Query `session_participants` WHERE `user_id = {userId}` AND `status = 'active'`
+
+**Submissions Filtering** (`lambda/functions/api/sessions/index.js`):
+```javascript
+// Get user role
+const userQuery = await dbClient.query('SELECT user_role FROM users WHERE user_id = $1', [userId]);
+const userRole = userQuery.rows[0]?.user_role;
+
+// Build query with conditional filtering
+let query = `SELECT ... FROM document_submissions WHERE session_id = $1`;
+const params = [sessionId];
+
+// Analysts can only see their own submissions
+if (userRole === 'analyst') {
+  query += ' AND submitted_by = $2';
+  params.push(userId);
+}
+```
+
+This filtering applies to:
+- `GET /sessions/{id}` - Session detail with submissions list
+- `GET /sessions/{id}/submissions` - Submissions endpoint
+- Dashboard submission counts
+
+**Frontend Access Control** (`frontend/app/dashboard/page.tsx`):
+```typescript
+// Check if user is admin
+const userIsAdmin = currentUser.groups?.includes('system_admin') || false;
+setIsAdmin(userIsAdmin);
+
+// Hide admin-only UI elements for analysts
+{isAdmin && (
+  <Button>Create Analysis Session</Button>
+)}
+```
+
 ### Git Workflow
 
 **IMPORTANT**: When committing changes:
@@ -724,17 +898,83 @@ After deployment, run through:
 - **Fix**: Start proxy with `node proxy-server.js` in frontend directory
 - **Check**: Proxy logs show request being forwarded
 
+### Analyst sees "No analysis sessions available"
+- **Root Cause**: User exists in Cognito but not in PostgreSQL, OR user_id mismatch between Cognito and PostgreSQL
+- **Check CloudWatch Logs**:
+  ```bash
+  export MSYS_NO_PATHCONV=1 && export MSYS2_ARG_CONV_EXCL="*" && \
+  aws logs tail /aws/lambda/overlay-api-sessions --since 5m --format short
+  ```
+  Look for: "ERROR: User not found in database"
+
+- **Debug Steps**:
+  1. Verify user exists in PostgreSQL:
+     ```sql
+     SELECT user_id, email, user_role FROM users WHERE email = 'analyst@example.com';
+     ```
+  2. Get Cognito user_id from JWT token (check CloudWatch logs for `sub` claim)
+  3. Compare: Does PostgreSQL user_id match Cognito `sub`?
+  4. Check session_participants entry exists:
+     ```sql
+     SELECT * FROM session_participants
+     WHERE user_id = (SELECT user_id FROM users WHERE email = 'analyst@example.com');
+     ```
+
+- **Fix user_id mismatch**: Create migration to update PostgreSQL user_id to match Cognito:
+  ```sql
+  DO $$
+  DECLARE
+    old_user_id UUID;
+    new_user_id UUID := 'cognito-sub-from-jwt';
+  BEGIN
+    SELECT user_id INTO old_user_id FROM users WHERE email = 'analyst@example.com';
+
+    -- Drop FK constraints temporarily
+    ALTER TABLE session_participants DROP CONSTRAINT IF EXISTS session_participants_user_id_fkey;
+    ALTER TABLE user_invitations DROP CONSTRAINT IF EXISTS user_invitations_accepted_by_fkey;
+
+    -- Update all tables
+    UPDATE session_participants SET user_id = new_user_id WHERE user_id = old_user_id;
+    UPDATE user_invitations SET accepted_by = new_user_id WHERE accepted_by = old_user_id;
+    UPDATE users SET user_id = new_user_id WHERE user_id = old_user_id;
+
+    -- Re-add FK constraints
+    ALTER TABLE session_participants ADD CONSTRAINT session_participants_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE;
+    ALTER TABLE user_invitations ADD CONSTRAINT user_invitations_accepted_by_fkey
+      FOREIGN KEY (accepted_by) REFERENCES users(user_id);
+  END $$;
+  ```
+
+### Analyst sees all submissions instead of only their own
+- **Root Cause**: Missing role-based filtering in session detail endpoint
+- **Check**: `lambda/functions/api/sessions/index.js` - both `handleGet` and `handleGetSessionSubmissions` functions
+- **Required**: Both functions must query user_role and add `WHERE submitted_by = $userId` for analysts
+- **Verify**: Check CloudWatch logs for the SQL query being executed - should include `submitted_by` filter for analysts
+
 ## Project Status
 
-**Version**: v1.6 - Original Submission Content Viewer (January 30, 2026)
+**Version**: v1.7 - Analyst Access System Fixed (February 5, 2026)
 **Backend**: ✅ Fully deployed and operational (10 API handlers + content endpoint)
-**Database**: ✅ v1.6 schema with appendices + notes support (21 tables, 127 indexes)
+**Database**: ✅ v1.7 schema with analyst access control (21 tables, 155 indexes, 3 migrations for user_id fixes)
 **Frontend**: ⚠️ Localhost only (production deployment needed)
 **AI Workflow**: ✅ 6 agents processing submissions
 **Notes Feature**: ✅ All phases complete (sidebar, text selection, database persistence, saved library, Word export, full CRUD)
 **Content Viewer**: ✅ Expandable section with lazy-loaded S3 content extraction and copy functionality
+**Access Control**: ✅ Two-role system (admin/analyst) with session-based permissions and submission filtering
 
 ### Version History
+
+**v1.7** (February 5, 2026) - Analyst Access System Fixed
+- ✅ Fixed analyst invitation signup to create matching Cognito and PostgreSQL user_ids
+- ✅ Implemented comprehensive role-based access control (RBAC) in permissions.js
+- ✅ Fixed submission filtering: analysts now only see their own submissions in session detail pages
+- ✅ Added diagnostic logging to sessions handler for debugging access issues
+- ✅ Migration 023: Fixed user_id mismatches by temporarily dropping FK constraints
+- ✅ Updated CLAUDE.md with analyst troubleshooting procedures and CloudWatch debugging
+- Bug Fixes: User not found errors, permission leaks, session access issues
+- Security: Proper data isolation between analysts
+- Status: Production Ready
 
 **v1.6** (January 30, 2026) - Original Submission Content Viewer
 - ✅ New backend endpoint: `GET /submissions/{id}/content`

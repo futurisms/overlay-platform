@@ -325,8 +325,25 @@ export class ComputeStack extends cdk.Stack {
       environment: {
         ...commonEnvironment,
         FRONTEND_URL: 'http://localhost:3000', // TODO: Update for production
+        USER_POOL_ID: props.userPool.userPoolId,
       },
       description: 'Handles analyst invitation system',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const usersHandler = new lambda.Function(this, 'UsersHandler', {
+      functionName: 'overlay-api-users',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/users'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Handles user information endpoints',
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
@@ -350,6 +367,7 @@ export class ComputeStack extends cdk.Stack {
       queryResultsHandler,
       notesHandler,
       invitationsHandler,
+      usersHandler,
     ];
 
     // Grant all Lambdas access to secrets
@@ -401,6 +419,16 @@ export class ComputeStack extends cdk.Stack {
         'cognito-idp:AdminSetUserPassword',
         'cognito-idp:AdminGetUser',
         'cognito-idp:AdminUpdateUserAttributes',
+      ],
+      resources: [props.userPool.userPoolArn],
+    }));
+
+    // Grant Cognito access to invitations handler (for analyst signup)
+    invitationsHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'cognito-idp:AdminCreateUser',
+        'cognito-idp:AdminSetUserPassword',
+        'cognito-idp:AdminAddUserToGroup',
       ],
       resources: [props.userPool.userPoolArn],
     }));
@@ -619,6 +647,16 @@ export class ComputeStack extends cdk.Stack {
     const acceptInvitationResource = invitationTokenResource.addResource('accept');
     acceptInvitationResource.addMethod('POST', new apigateway.LambdaIntegration(invitationsHandler), {
       authorizationType: apigateway.AuthorizationType.NONE, // Public endpoint
+    });
+
+    // /users (user management routes)
+    const usersResource = this.api.root.addResource('users');
+
+    // /users/me (get current user info - authenticated)
+    const usersMeResource = usersResource.addResource('me');
+    usersMeResource.addMethod('GET', new apigateway.LambdaIntegration(usersHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // CloudFormation Outputs

@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false);
   const [showQuickUploadDialog, setShowQuickUploadDialog] = useState(false);
@@ -70,9 +71,15 @@ export default function DashboardPage() {
     }
     setUser(currentUser);
 
+    // Check if user is admin (has system_admin group)
+    const userIsAdmin = currentUser.groups?.includes('system_admin') || false;
+    setIsAdmin(userIsAdmin);
+
     // Load sessions and overlays
     loadSessions();
-    loadOverlays();
+    if (userIsAdmin) {
+      loadOverlays(); // Only admins need overlays for creating sessions
+    }
   }, [router]);
 
   const loadSessions = async () => {
@@ -335,10 +342,12 @@ export default function DashboardPage() {
                 <CardDescription>Select an analysis session to upload documents and view analyses</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button onClick={() => setShowNewSessionDialog(true)} variant="default" size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Analysis Session
-                </Button>
+                {isAdmin && (
+                  <Button onClick={() => setShowNewSessionDialog(true)} variant="default" size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Analysis Session
+                  </Button>
+                )}
                 <Button onClick={loadSessions} variant="outline" size="sm">
                   Refresh
                 </Button>
@@ -374,27 +383,31 @@ export default function DashboardPage() {
                           <Badge variant={getStatusColor(session.status)}>
                             {session.status}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => handleEditSessionClick(session, e)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => handleDeleteSession(session.session_id, e)}
-                            disabled={isDeleting === session.session_id}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            {isDeleting === session.session_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => handleEditSessionClick(session, e)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => handleDeleteSession(session.session_id, e)}
+                                disabled={isDeleting === session.session_id}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                {isDeleting === session.session_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -425,7 +438,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-1'} gap-4`}>
           <Card
             className="cursor-pointer hover:border-blue-500 transition-colors"
             onClick={() => router.push("/submissions")}
@@ -443,39 +456,43 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card
-            className="cursor-pointer hover:border-blue-500 transition-colors"
-            onClick={() => setShowQuickUploadDialog(true)}
-          >
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Quick Upload
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Upload a document to an available session
-              </p>
-            </CardContent>
-          </Card>
+          {isAdmin && (
+            <>
+              <Card
+                className="cursor-pointer hover:border-blue-500 transition-colors"
+                onClick={() => setShowQuickUploadDialog(true)}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Upload className="h-5 w-5" />
+                    Quick Upload
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Upload a document to an available session
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card
-            className="cursor-pointer hover:border-blue-500 transition-colors"
-            onClick={() => router.push("/overlays")}
-          >
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Intelligence Setup
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Create and manage intelligence evaluation templates
-              </p>
-            </CardContent>
-          </Card>
+              <Card
+                className="cursor-pointer hover:border-blue-500 transition-colors"
+                onClick={() => router.push("/overlays")}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Intelligence Setup
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Create and manage intelligence evaluation templates
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Create New Session Dialog */}

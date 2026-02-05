@@ -325,6 +325,75 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Users endpoints
+  async getCurrentUserInfo() {
+    return this.request<{
+      user: {
+        user_id: string;
+        email: string;
+        name: string;
+        role: string;
+        created_at: string;
+      };
+    }>('/users/me');
+  }
+
+  // Invitations endpoints
+  async createInvitation(sessionId: string, email: string) {
+    return this.request<{
+      message: string;
+      invitation?: {
+        invitation_id: string;
+        email: string;
+        token: string;
+        session_id: string;
+        expires_at: string;
+        created_at: string;
+      };
+      inviteLink?: string;
+      user?: {
+        user_id: string;
+        email: string;
+        role: string;
+      };
+    }>(`/sessions/${sessionId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async getInvitation(token: string) {
+    return this.request<{
+      invitation: {
+        email: string;
+        session_name: string;
+        invited_by_name: string;
+        expires_at: string;
+      };
+    }>(`/invitations/${token}`);
+  }
+
+  async acceptInvitation(token: string, name: string, password: string) {
+    // Split name into firstName and lastName for backend
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || nameParts[0] || ''; // If only one name, use it for both
+
+    return this.request<{
+      message: string;
+      user: {
+        user_id: string;
+        email: string;
+        name: string;
+        role: string;
+        created_at: string;
+      };
+    }>(`/invitations/${token}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({ firstName, lastName, password }),
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

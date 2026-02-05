@@ -126,7 +126,7 @@ function canEditNote(user, note) {
 /**
  * Check if user has access to a specific session
  * Admins have access to all sessions
- * Analysts need explicit access grant in session_access table
+ * Analysts need explicit access grant in session_participants table
  * @param {Object} db - Database client
  * @param {string} userId - User UUID
  * @param {string} sessionId - Session UUID
@@ -150,8 +150,8 @@ async function hasSessionAccess(db, userId, sessionId) {
 
   // Analysts need explicit access grant
   const accessResult = await db.query(
-    'SELECT 1 FROM session_access WHERE user_id = $1 AND session_id = $2',
-    [userId, sessionId]
+    'SELECT 1 FROM session_participants WHERE user_id = $1 AND session_id = $2 AND status = $3',
+    [userId, sessionId, 'active']
   );
 
   return accessResult.rows.length > 0;
@@ -165,19 +165,29 @@ async function hasSessionAccess(db, userId, sessionId) {
  * @returns {Promise<Array>} Array of session objects
  */
 async function getAccessibleSessions(db, userId) {
+  console.log('='.repeat(70));
+  console.log('DEBUG: getAccessibleSessions called');
+  console.log('User ID:', userId);
+
   // Get user role
   const userResult = await db.query(
-    'SELECT user_role FROM users WHERE user_id = $1',
+    'SELECT user_id, email, user_role FROM users WHERE user_id = $1',
     [userId]
   );
 
+  console.log('User query result:', userResult.rows);
+
   if (userResult.rows.length === 0) {
+    console.log('ERROR: User not found in database');
+    console.log('='.repeat(70));
     return []; // User doesn't exist
   }
 
   const userRole = userResult.rows[0].user_role;
+  console.log('User role:', userRole);
 
   if (userRole === 'admin') {
+    console.log('Branch: ADMIN - fetching all active sessions');
     // Admins see all active sessions
     const result = await db.query(`
       SELECT
@@ -194,8 +204,21 @@ async function getAccessibleSessions(db, userId) {
       ORDER BY created_at DESC
     `);
 
+    console.log('Admin query returned', result.rows.length, 'sessions');
+    console.log('='.repeat(70));
     return result.rows;
   } else {
+    console.log('Branch: ANALYST - fetching assigned sessions only');
+    console.log('Query parameters: userId =', userId);
+
+    // First, check if session_participants entries exist
+    const participantCheck = await db.query(
+      'SELECT * FROM session_participants WHERE user_id = $1',
+      [userId]
+    );
+    console.log('Participant entries found:', participantCheck.rows.length);
+    console.log('Participant data:', JSON.stringify(participantCheck.rows, null, 2));
+
     // Analysts see only assigned sessions
     const result = await db.query(`
       SELECT DISTINCT
@@ -208,12 +231,18 @@ async function getAccessibleSessions(db, userId) {
         rs.created_at,
         rs.updated_at
       FROM review_sessions rs
-      INNER JOIN session_access sa ON rs.session_id = sa.session_id
-      WHERE sa.user_id = $1
+      INNER JOIN session_participants sp ON rs.session_id = sp.session_id
+      WHERE sp.user_id = $1
+        AND sp.status = 'active'
         AND rs.is_active = true
       ORDER BY rs.created_at DESC
     `, [userId]);
 
+    console.log('Analyst query returned', result.rows.length, 'sessions');
+    if (result.rows.length > 0) {
+      console.log('Sessions:', JSON.stringify(result.rows, null, 2));
+    }
+    console.log('='.repeat(70));
     return result.rows;
   }
 }
@@ -319,11 +348,11 @@ async function grantSessionAccess(db, adminUser, userId, sessionId) {
   }
 
   const result = await db.query(`
-    INSERT INTO session_access (user_id, session_id, granted_by)
-    VALUES ($1, $2, $3)
-    ON CONFLICT (user_id, session_id) DO NOTHING
-    RETURNING access_id, user_id, session_id, granted_by, granted_at
-  `, [userId, sessionId, adminUser.user_id]);
+    INSERT INTO session_participants (user_id, session_id, invited_by, role, status)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (session_id, user_id) DO UPDATE SET status = 'active'
+    RETURNING participant_id, user_id, session_id, invited_by, role, status, joined_at
+  `, [userId, sessionId, adminUser.user_id, 'reviewer', 'active']);
 
   return result.rows[0];
 }
@@ -334,7 +363,7 @@ async function grantSessionAccess(db, adminUser, userId, sessionId) {
  * @param {Object} adminUser - Admin user object
  * @param {string} userId - User to revoke access from
  * @param {string} sessionId - Session to revoke access to
- * @returns {Promise<number>} Number of rows deleted
+ * @returns {Promise<number>} Number of rows updated
  */
 async function revokeSessionAccess(db, adminUser, userId, sessionId) {
   if (!isAdmin(adminUser)) {
@@ -342,8 +371,8 @@ async function revokeSessionAccess(db, adminUser, userId, sessionId) {
   }
 
   const result = await db.query(
-    'DELETE FROM session_access WHERE user_id = $1 AND session_id = $2',
-    [userId, sessionId]
+    'UPDATE session_participants SET status = $1 WHERE user_id = $2 AND session_id = $3',
+    ['inactive', userId, sessionId]
   );
 
   return result.rowCount;
@@ -363,20 +392,22 @@ async function getSessionAccessList(db, adminUser, sessionId) {
 
   const result = await db.query(`
     SELECT
-      sa.access_id,
-      sa.user_id,
-      sa.session_id,
-      sa.granted_at,
+      sp.participant_id,
+      sp.user_id,
+      sp.session_id,
+      sp.role,
+      sp.status,
+      sp.joined_at,
       u.email,
       u.first_name,
       u.last_name,
       u.user_role,
-      admin.email as granted_by_email
-    FROM session_access sa
-    JOIN users u ON sa.user_id = u.user_id
-    LEFT JOIN users admin ON sa.granted_by = admin.user_id
-    WHERE sa.session_id = $1
-    ORDER BY sa.granted_at DESC
+      admin.email as invited_by_email
+    FROM session_participants sp
+    JOIN users u ON sp.user_id = u.user_id
+    LEFT JOIN users admin ON sp.invited_by = admin.user_id
+    WHERE sp.session_id = $1
+    ORDER BY sp.joined_at DESC
   `, [sessionId]);
 
   return result.rows;

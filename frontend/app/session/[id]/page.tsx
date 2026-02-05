@@ -37,6 +37,9 @@ import {
   X,
   Trash2,
   Edit,
+  UserPlus,
+  Copy,
+  Mail,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -87,10 +90,23 @@ export default function SessionPage() {
   const [deleteSubmissionName, setDeleteSubmissionName] = useState<string>("");
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Invitation modal state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   useEffect(() => {
     // Check authentication
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
+    const user = getCurrentUser();
+    console.log('🔍 DEBUG: Current user from localStorage:', user);
+    console.log('🔍 DEBUG: User role:', user?.role);
+    console.log('🔍 DEBUG: Is admin check:', user?.role === 'system_admin');
+    setCurrentUser(user);
+    if (!user) {
       router.push("/login");
       return;
     }
@@ -384,6 +400,78 @@ export default function SessionPage() {
     setDeleteSubmissionName("");
   };
 
+  // Invitation handlers
+  const handleInviteClick = () => {
+    setShowInviteModal(true);
+    setInviteEmail("");
+    setInviteError(null);
+    setInviteSuccess(null);
+    setInviteLink(null);
+  };
+
+  const handleInviteSubmit = async () => {
+    if (!inviteEmail.trim()) {
+      setInviteError("Email is required");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) {
+      setInviteError("Please enter a valid email address");
+      return;
+    }
+
+    setIsInviting(true);
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    try {
+      const result = await apiClient.createInvitation(sessionId, inviteEmail);
+
+      if (result.error) {
+        setInviteError(result.error);
+      } else if (result.data) {
+        // Check if user already exists
+        if (result.data.user) {
+          setInviteSuccess(`${result.data.user.email} already has an account. Access has been granted to this session.`);
+          setInviteLink(null);
+        } else if (result.data.inviteLink) {
+          setInviteSuccess("Invitation created successfully!");
+          setInviteLink(result.data.inviteLink);
+        }
+      }
+    } catch (err) {
+      setInviteError("Failed to send invitation");
+      console.error(err);
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    if (inviteLink) {
+      navigator.clipboard.writeText(inviteLink);
+      // Could add a toast notification here
+    }
+  };
+
+  const handleCloseInviteModal = () => {
+    setShowInviteModal(false);
+    setInviteEmail("");
+    setInviteError(null);
+    setInviteSuccess(null);
+    setInviteLink(null);
+  };
+
+  const isAdmin = () => {
+    const roleCheck = currentUser?.role === 'admin';
+    const groupCheck = currentUser?.groups?.includes('system_admin');
+    const result = roleCheck || groupCheck;
+    console.log('🔍 DEBUG isAdmin(): currentUser?.role =', currentUser?.role, '| currentUser?.groups =', currentUser?.groups, '| roleCheck =', roleCheck, '| groupCheck =', groupCheck, '| Result:', result);
+    return result;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
@@ -416,6 +504,16 @@ export default function SessionPage() {
                 </p>
                 <Badge variant={getStatusColor(session.status)}>{session.status}</Badge>
               </div>
+
+              {/* Invite Analyst Button (Admin Only) */}
+              {isAdmin() && (
+                <div>
+                  <Button onClick={handleInviteClick} variant="default">
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Invite Analyst
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -931,6 +1029,120 @@ export default function SessionPage() {
                 <FileText className="mr-2 h-4 w-4" />
                 View Progress
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Invitation Modal */}
+        <Dialog open={showInviteModal} onOpenChange={handleCloseInviteModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Invite Analyst to Session
+              </DialogTitle>
+              <DialogDescription>
+                Send an invitation to an analyst to join "{session?.name}". They will receive an invite link to create their account.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {inviteError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{inviteError}</AlertDescription>
+                </Alert>
+              )}
+
+              {inviteSuccess && (
+                <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <AlertDescription className="text-green-800 dark:text-green-300">
+                    {inviteSuccess}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!inviteSuccess && (
+                <>
+                  <div className="space-y-2">
+                    <label htmlFor="invite-email" className="text-sm font-medium">
+                      Email Address
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-slate-400" />
+                      <Input
+                        id="invite-email"
+                        type="email"
+                        placeholder="analyst@example.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        disabled={isInviting}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={handleInviteSubmit}
+                      disabled={isInviting || !inviteEmail.trim()}
+                      className="flex-1"
+                    >
+                      {isInviting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="mr-2 h-4 w-4" />
+                          Send Invitation
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleCloseInviteModal}
+                      disabled={isInviting}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {inviteLink && (
+                <div className="space-y-3">
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-900">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                      Invitation Link
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-sm bg-white dark:bg-slate-800 px-3 py-2 rounded border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                        {inviteLink}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCopyInviteLink}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Share this link with the analyst. The invitation expires in 7 days.
+                  </p>
+
+                  <Button
+                    onClick={handleCloseInviteModal}
+                    className="w-full"
+                  >
+                    Done
+                  </Button>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

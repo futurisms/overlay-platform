@@ -76,6 +76,10 @@ async function handleGet(dbClient, pathParameters, userId) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
     }
 
+    // Get user role to determine filtering
+    const userQuery = await dbClient.query('SELECT user_role FROM users WHERE user_id = $1', [userId]);
+    const userRole = userQuery.rows[0]?.user_role;
+
     // Get participants
     const participantsQuery = `
       SELECT sp.user_id, sp.role, sp.joined_at,
@@ -86,8 +90,8 @@ async function handleGet(dbClient, pathParameters, userId) {
     `;
     const participantsResult = await dbClient.query(participantsQuery, [sessionId]);
 
-    // Get submissions with scores
-    const submissionsQuery = `
+    // Get submissions with scores (filtered by role)
+    let submissionsQuery = `
       SELECT ds.submission_id, ds.document_name, ds.status, ds.ai_analysis_status,
              ds.submitted_at, u.first_name || ' ' || u.last_name as submitted_by_name,
              (
@@ -104,9 +108,19 @@ async function handleGet(dbClient, pathParameters, userId) {
       FROM document_submissions ds
       LEFT JOIN users u ON ds.submitted_by = u.user_id
       WHERE ds.session_id = $1
-      ORDER BY ds.submitted_at DESC
     `;
-    const submissionsResult = await dbClient.query(submissionsQuery, [sessionId]);
+
+    const submissionsParams = [sessionId];
+
+    // Analysts can only see their own submissions
+    if (userRole === 'analyst') {
+      submissionsQuery += ' AND ds.submitted_by = $2';
+      submissionsParams.push(userId);
+    }
+
+    submissionsQuery += ' ORDER BY ds.submitted_at DESC';
+
+    const submissionsResult = await dbClient.query(submissionsQuery, submissionsParams);
 
     const session = sessionResult.rows[0];
     session.participants = participantsResult.rows;
@@ -116,7 +130,15 @@ async function handleGet(dbClient, pathParameters, userId) {
     return { statusCode: 200, body: JSON.stringify(session) };
   } else {
     // List user's accessible sessions (admins see all, analysts see assigned)
+    console.log('='.repeat(70));
+    console.log('DEBUG: Fetching accessible sessions');
+    console.log('User ID:', userId);
+
     const sessions = await getAccessibleSessions(dbClient, userId);
+
+    console.log('Sessions returned:', sessions.length);
+    console.log('Sessions data:', JSON.stringify(sessions, null, 2));
+    console.log('='.repeat(70));
 
     // Add participant and submission counts
     for (const session of sessions) {
@@ -162,7 +184,12 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
     return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
-  const query = `
+  // Get user role to determine filtering
+  const userQuery = await dbClient.query('SELECT user_role FROM users WHERE user_id = $1', [userId]);
+  const userRole = userQuery.rows[0]?.user_role;
+
+  // Build query with role-based filtering
+  let query = `
     SELECT ds.submission_id, ds.document_name, ds.status, ds.ai_analysis_status,
            ds.submitted_at, u.first_name || ' ' || u.last_name as submitted_by_name,
            (
@@ -179,9 +206,19 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
     FROM document_submissions ds
     LEFT JOIN users u ON ds.submitted_by = u.user_id
     WHERE ds.session_id = $1
-    ORDER BY ds.submitted_at DESC
   `;
-  const result = await dbClient.query(query, [sessionId]);
+
+  const params = [sessionId];
+
+  // Analysts can only see their own submissions
+  if (userRole === 'analyst') {
+    query += ' AND ds.submitted_by = $2';
+    params.push(userId);
+  }
+
+  query += ' ORDER BY ds.submitted_at DESC';
+
+  const result = await dbClient.query(query, params);
 
   return { statusCode: 200, body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
 }
