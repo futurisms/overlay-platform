@@ -280,6 +280,102 @@ class ApiClient {
     });
   }
 
+  // Admin endpoints (system_admin only)
+  async getAdminSubmissions(params?: {
+    date_from?: string;
+    date_to?: string;
+    session_id?: string;
+    user_id?: string;
+    sort_by?: 'cost' | 'date' | 'tokens';
+    sort_order?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      if (params.date_from) queryParams.append('date_from', params.date_from);
+      if (params.date_to) queryParams.append('date_to', params.date_to);
+      if (params.session_id) queryParams.append('session_id', params.session_id);
+      if (params.user_id) queryParams.append('user_id', params.user_id);
+      if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+      if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+      if (params.offset) queryParams.append('offset', params.offset.toString());
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `/admin/submissions${queryString ? `?${queryString}` : ''}`;
+
+    return this.request<{
+      submissions: Array<{
+        submission_id: string;
+        document_name: string;
+        submitted_by: string;
+        submitted_by_name: string | null; // NULL if user deleted
+        submitted_by_email: string | null; // NULL if user deleted
+        session_id: string;
+        session_name: string | null; // NULL if session deleted
+        overlay_name: string | null; // NULL if overlay deleted
+        submitted_at: string;
+        ai_analysis_status: string;
+        total_tokens: number;
+        input_tokens: number;
+        output_tokens: number;
+        agent_calls: number;
+        agents_used: string[] | null; // NULL if no token usage yet
+        cost_usd: string; // PostgreSQL NUMERIC returns as string
+      }>;
+      total: number;
+      limit: number;
+      offset: number;
+      summary: {
+        total_submissions: number;
+        total_tokens: number;
+        total_cost_usd: string; // PostgreSQL NUMERIC returns as string
+        avg_tokens_per_submission: number;
+        avg_cost_per_submission: string; // PostgreSQL NUMERIC returns as string
+      };
+    }>(endpoint);
+  }
+
+  async getAdminAnalytics(period: '7d' | '30d' | '90d' | 'all' = '30d') {
+    return this.request<{
+      summary: {
+        total_submissions: number;
+        total_cost_usd: string;
+        total_tokens: number;
+        avg_cost_per_submission: string;
+        completed_submissions: number;
+        pending_submissions: number;
+      };
+      daily_stats: Array<{
+        date: string;
+        submissions: number;
+        total_tokens: number;
+        cost_usd: string; // PostgreSQL NUMERIC returns as string
+      }>;
+      top_users: Array<{
+        user_id: string;
+        email: string;
+        name: string;
+        submissions: number;
+        total_cost_usd: string; // PostgreSQL NUMERIC returns as string
+      }>;
+      top_sessions: Array<{
+        session_id: string;
+        name: string;
+        submissions: number;
+        total_cost_usd: string; // PostgreSQL NUMERIC returns as string
+      }>;
+      agent_breakdown: Array<{
+        agent_name: string;
+        calls: number;
+        avg_tokens: number;
+        total_cost_usd: string; // PostgreSQL NUMERIC returns as string
+      }>;
+    }>(`/admin/analytics?period=${period}`);
+  }
+
   // Notes endpoints
   async createNote(title: string, content: string, sessionId?: string) {
     const body: any = { title, content };

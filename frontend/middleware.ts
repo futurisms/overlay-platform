@@ -28,6 +28,18 @@ function isTokenExpired(token: string): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // CRITICAL: Always allow Next.js internal paths and static assets
+  // This must be FIRST before any other checks
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname.includes('/favicon.ico') ||
+    pathname.includes('/public/') ||
+    pathname === '/signup'
+  ) {
+    return NextResponse.next();
+  }
+
   // Allow public routes
   if (publicRoutes.includes(pathname)) {
     return NextResponse.next();

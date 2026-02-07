@@ -347,6 +347,23 @@ export class ComputeStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
+    // Admin Handler (admin-only monitoring and analytics)
+    const adminHandler = new lambda.Function(this, 'AdminHandler', {
+      functionName: 'overlay-api-admin',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/api/admin'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Admin-only endpoints for monitoring all submissions and costs',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
     // ==========================================================================
     // IAM PERMISSIONS
     // ==========================================================================
@@ -368,6 +385,7 @@ export class ComputeStack extends cdk.Stack {
       notesHandler,
       invitationsHandler,
       usersHandler,
+      adminHandler,
     ];
 
     // Grant all Lambdas access to secrets
@@ -655,6 +673,26 @@ export class ComputeStack extends cdk.Stack {
     // /users/me (get current user info - authenticated)
     const usersMeResource = usersResource.addResource('me');
     usersMeResource.addMethod('GET', new apigateway.LambdaIntegration(usersHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // ==========================================================================
+    // ADMIN ROUTES (admin-only monitoring and analytics)
+    // ==========================================================================
+
+    const adminResource = this.api.root.addResource('admin');
+
+    // /admin/submissions (get all submissions with costs - admin only)
+    const adminSubmissionsResource = adminResource.addResource('submissions');
+    adminSubmissionsResource.addMethod('GET', new apigateway.LambdaIntegration(adminHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /admin/analytics (get dashboard analytics - admin only)
+    const adminAnalyticsResource = adminResource.addResource('analytics');
+    adminAnalyticsResource.addMethod('GET', new apigateway.LambdaIntegration(adminHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

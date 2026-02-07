@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
-import { Loader2, Calendar, Users, FileText, LogOut, Upload, Settings, Trash2, Plus, Pencil } from "lucide-react";
+import { Loader2, Calendar, Users, FileText, LogOut, Upload, Settings, Trash2, Plus, Pencil, BarChart3 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser, logout } from "@/lib/auth";
 
@@ -438,7 +438,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Quick Actions */}
-        <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-1'} gap-4`}>
+        <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-1'} gap-4`}>
           <Card
             className="cursor-pointer hover:border-blue-500 transition-colors"
             onClick={() => router.push("/submissions")}
@@ -488,6 +488,23 @@ export default function DashboardPage() {
                 <CardContent>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     Create and manage intelligence evaluation templates
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className="cursor-pointer hover:border-blue-500 transition-colors border-purple-200 dark:border-purple-800"
+                onClick={() => router.push("/admin/dashboard")}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                    <BarChart3 className="h-5 w-5" />
+                    Admin Dashboard
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Monitor all submissions, token usage, and costs
                   </p>
                 </CardContent>
               </Card>
