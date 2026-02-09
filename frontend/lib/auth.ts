@@ -22,7 +22,7 @@ export async function login(email: string, password: string): Promise<LoginResul
   try {
     // Use environment-aware URL (proxy server in dev, API Gateway in production)
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-    const url = `${API_BASE_URL}/cognito`;
+    const url = `${API_BASE_URL}/auth`;
 
     const payload = {
       AuthFlow: 'USER_PASSWORD_AUTH',
