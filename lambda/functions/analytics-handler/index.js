@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 
 exports.handler = async (event) => {
   console.log('Analytics Handler:', JSON.stringify(event));
@@ -17,30 +18,30 @@ exports.handler = async (event) => {
     dbClient = await createDbConnection();
 
     if (httpMethod !== 'GET') {
-      return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+      return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
 
     // Route based on path
     if (path.includes('/overview')) {
-      return await handleOverview(dbClient, userId);
+      return await handleOverview(dbClient, userId, event);
     }
     if (path.includes('/submissions')) {
-      return await handleSubmissionsAnalytics(dbClient, userId);
+      return await handleSubmissionsAnalytics(dbClient, userId, event);
     }
     if (path.includes('/users')) {
-      return await handleUsersAnalytics(dbClient, userId);
+      return await handleUsersAnalytics(dbClient, userId, event);
     }
 
-    return { statusCode: 404, body: JSON.stringify({ error: 'Analytics endpoint not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Analytics endpoint not found' }) };
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
 };
 
-async function handleOverview(dbClient, userId) {
+async function handleOverview(dbClient, userId, event) {
   // Dashboard summary metrics scoped to user's organization
   const query = `
     SELECT
@@ -72,10 +73,10 @@ async function handleOverview(dbClient, userId) {
   `;
   const result = await dbClient.query(query, [userId]);
 
-  return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
-async function handleSubmissionsAnalytics(dbClient, userId) {
+async function handleSubmissionsAnalytics(dbClient, userId, event) {
   // Submission statistics over time
   const query = `
     SELECT
@@ -93,10 +94,10 @@ async function handleSubmissionsAnalytics(dbClient, userId) {
   `;
   const result = await dbClient.query(query, [userId]);
 
-  return { statusCode: 200, body: JSON.stringify({ daily_stats: result.rows, total: result.rows.length }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ daily_stats: result.rows, total: result.rows.length }) };
 }
 
-async function handleUsersAnalytics(dbClient, userId) {
+async function handleUsersAnalytics(dbClient, userId, event) {
   // User activity metrics
   const query = `
     SELECT
@@ -124,5 +125,5 @@ async function handleUsersAnalytics(dbClient, userId) {
   `;
   const result = await dbClient.query(query, [userId]);
 
-  return { statusCode: 200, body: JSON.stringify({ user_stats: result.rows, total: result.rows.length }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ user_stats: result.rows, total: result.rows.length }) };
 }

@@ -53,9 +53,9 @@ exports.handler = async (event) => {
     // Route to appropriate handler
     if (httpMethod === 'GET') {
       if (path.includes('/analytics')) {
-        return await handleGetAnalytics(dbClient, queryStringParameters);
+        return await handleGetAnalytics(dbClient, queryStringParameters, event);
       } else if (path.includes('/submissions')) {
-        return await handleGetSubmissions(dbClient, queryStringParameters);
+        return await handleGetSubmissions(dbClient, queryStringParameters, event);
       }
     }
 
@@ -80,7 +80,7 @@ exports.handler = async (event) => {
  * GET /admin/submissions
  * Returns all submissions with token usage and costs
  */
-async function handleGetSubmissions(dbClient, queryParams) {
+async function handleGetSubmissions(dbClient, queryParams, event) {
   console.log('handleGetSubmissions - Query params:', queryParams);
 
   // Parse query parameters
@@ -253,7 +253,7 @@ async function handleGetSubmissions(dbClient, queryParams) {
  * GET /admin/analytics
  * Returns dashboard summary statistics and charts data
  */
-async function handleGetAnalytics(dbClient, queryParams) {
+async function handleGetAnalytics(dbClient, queryParams, event) {
   console.log('handleGetAnalytics - Query params:', queryParams);
 
   const period = queryParams?.period || '30d'; // '7d', '30d', '90d', 'all'
