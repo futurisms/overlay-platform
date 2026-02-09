@@ -19,13 +19,13 @@ exports.handler = async (event) => {
 
     switch (httpMethod) {
       case 'GET':
-        return await handleGet(dbClient, pathParameters, userId);
+        return await handleGet(dbClient, pathParameters, userId, event);
       case 'POST':
-        return await handleCreate(dbClient, requestBody, userId);
+        return await handleCreate(dbClient, requestBody, userId, event);
       case 'PUT':
-        return await handleUpdate(dbClient, pathParameters, requestBody, userId);
+        return await handleUpdate(dbClient, pathParameters, requestBody, userId, event);
       case 'DELETE':
-        return await handleDelete(dbClient, pathParameters, userId);
+        return await handleDelete(dbClient, pathParameters, userId, event);
       default:
         return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
@@ -37,7 +37,7 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleGet(dbClient, pathParameters, userId) {
+async function handleGet(dbClient, pathParameters, userId, event) {
   const noteId = pathParameters?.noteId || pathParameters?.id;
 
   if (noteId) {
@@ -85,7 +85,7 @@ async function handleGet(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleCreate(dbClient, requestBody, userId) {
+async function handleCreate(dbClient, requestBody, userId, event) {
   const { title, content, session_id } = JSON.parse(requestBody);
 
   // Validate required fields
@@ -135,7 +135,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   };
 }
 
-async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
+async function handleUpdate(dbClient, pathParameters, requestBody, userId, event) {
   const noteId = pathParameters?.noteId || pathParameters?.id;
 
   if (!noteId) {
@@ -196,7 +196,7 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   };
 }
 
-async function handleDelete(dbClient, pathParameters, userId) {
+async function handleDelete(dbClient, pathParameters, userId, event) {
   const noteId = pathParameters?.noteId || pathParameters?.id;
 
   if (!noteId) {

@@ -26,34 +26,34 @@ exports.handler = async (event) => {
 
     // Handle special routes
     if (path.includes('/content')) {
-      return await handleGetContent(dbClient, pathParameters, userId);
+      return await handleGetContent(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/analysis')) {
-      return await handleGetAnalysis(dbClient, pathParameters, userId);
+      return await handleGetAnalysis(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/feedback')) {
-      return await handleGetFeedback(dbClient, pathParameters, userId);
+      return await handleGetFeedback(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/download-appendix')) {
-      return await handleDownloadAppendix(dbClient, pathParameters, userId);
+      return await handleDownloadAppendix(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/download-file')) {
-      return await handleDownloadFile(dbClient, pathParameters, userId);
+      return await handleDownloadFile(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/download')) {
-      return await handleDownload(dbClient, pathParameters, userId);
+      return await handleDownload(dbClient, pathParameters, userId, event);
     }
 
     // Standard CRUD routes
     switch (httpMethod) {
       case 'GET':
-        return await handleGet(dbClient, pathParameters, userId);
+        return await handleGet(dbClient, pathParameters, userId, event);
       case 'POST':
-        return await handleCreate(dbClient, requestBody, userId);
+        return await handleCreate(dbClient, requestBody, userId, event);
       case 'PUT':
-        return await handleUpdate(dbClient, pathParameters, userId, requestBody);
+        return await handleUpdate(dbClient, pathParameters, userId, requestBody, event);
       case 'DELETE':
-        return await handleDelete(dbClient, pathParameters, userId);
+        return await handleDelete(dbClient, pathParameters, userId, event);
       default:
         return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
@@ -65,7 +65,7 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleGet(dbClient, pathParameters, userId) {
+async function handleGet(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (submissionId) {
@@ -129,7 +129,7 @@ async function handleGet(dbClient, pathParameters, userId) {
  * Get submission content (main document + appendices text)
  * GET /submissions/{id}/content
  */
-async function handleGetContent(dbClient, pathParameters, userId) {
+async function handleGetContent(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
@@ -258,7 +258,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleCreate(dbClient, requestBody, userId) {
+async function handleCreate(dbClient, requestBody, userId, event) {
   const { overlay_id, session_id, document_name, document_content, is_pasted_text, appendices } = JSON.parse(requestBody);
 
   if (!overlay_id || !document_name || !document_content) {
@@ -410,7 +410,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(submission) };
 }
 
-async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
+async function handleUpdate(dbClient, pathParameters, userId, requestBody, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
   if (!submissionId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
@@ -463,7 +463,7 @@ async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
-async function handleDelete(dbClient, pathParameters, userId) {
+async function handleDelete(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
   if (!submissionId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
@@ -509,7 +509,7 @@ async function handleDelete(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ message: 'Submission deleted', submission_id: submissionId }) };
 }
 
-async function handleGetAnalysis(dbClient, pathParameters, userId) {
+async function handleGetAnalysis(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   // Get submission status first
@@ -608,7 +608,7 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(analysis) };
 }
 
-async function handleGetFeedback(dbClient, pathParameters, userId) {
+async function handleGetFeedback(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
@@ -715,7 +715,7 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(completeFeedback) };
 }
 
-async function handleDownloadFile(dbClient, pathParameters, userId) {
+async function handleDownloadFile(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
@@ -774,7 +774,7 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleDownloadAppendix(dbClient, pathParameters, userId) {
+async function handleDownloadAppendix(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
   const appendixOrder = pathParameters?.order;
 
@@ -846,7 +846,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleDownload(dbClient, pathParameters, userId) {
+async function handleDownload(dbClient, pathParameters, userId, event) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {

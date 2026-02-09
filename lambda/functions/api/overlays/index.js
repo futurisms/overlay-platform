@@ -20,13 +20,13 @@ exports.handler = async (event) => {
 
     switch (httpMethod) {
       case 'GET':
-        return await handleGet(dbClient, pathParameters, userId);
+        return await handleGet(dbClient, pathParameters, userId, event);
       case 'POST':
-        return await handleCreate(dbClient, requestBody, userId);
+        return await handleCreate(dbClient, requestBody, userId, event);
       case 'PUT':
-        return await handleUpdate(dbClient, pathParameters, requestBody, userId);
+        return await handleUpdate(dbClient, pathParameters, requestBody, userId, event);
       case 'DELETE':
-        return await handleDelete(dbClient, pathParameters, userId);
+        return await handleDelete(dbClient, pathParameters, userId, event);
       default:
         return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
@@ -38,7 +38,7 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleGet(dbClient, pathParameters, userId) {
+async function handleGet(dbClient, pathParameters, userId, event) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
 
   if (overlayId) {
@@ -105,7 +105,7 @@ async function handleGet(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleCreate(dbClient, requestBody, userId) {
+async function handleCreate(dbClient, requestBody, userId, event) {
   const { name, description, document_type, configuration, criteria } = JSON.parse(requestBody);
 
   if (!name || !document_type) {
@@ -165,7 +165,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(overlay) };
 }
 
-async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
+async function handleUpdate(dbClient, pathParameters, requestBody, userId, event) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay ID required' }) };
@@ -282,7 +282,7 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
-async function handleDelete(dbClient, pathParameters, userId) {
+async function handleDelete(dbClient, pathParameters, userId, event) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay ID required' }) };

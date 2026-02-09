@@ -20,30 +20,30 @@ exports.handler = async (event) => {
 
     // Handle special routes
     if (path.endsWith('/available')) {
-      return await handleGetAvailable(dbClient, userId);
+      return await handleGetAvailable(dbClient, userId, event);
     }
     if (path.includes('/submissions')) {
-      return await handleGetSessionSubmissions(dbClient, pathParameters, userId);
+      return await handleGetSessionSubmissions(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/report')) {
-      return await handleGetSessionReport(dbClient, pathParameters, userId);
+      return await handleGetSessionReport(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/export')) {
-      return await handleExportSession(dbClient, pathParameters, userId);
+      return await handleExportSession(dbClient, pathParameters, userId, event);
     }
     if (path.includes('/participants/') && httpMethod === 'DELETE') {
-      return await handleRemoveParticipant(dbClient, path, userId);
+      return await handleRemoveParticipant(dbClient, path, userId, event);
     }
 
     switch (httpMethod) {
       case 'GET':
-        return await handleGet(dbClient, pathParameters, userId);
+        return await handleGet(dbClient, pathParameters, userId, event);
       case 'POST':
-        return await handleCreate(dbClient, requestBody, userId);
+        return await handleCreate(dbClient, requestBody, userId, event);
       case 'PUT':
-        return await handleUpdate(dbClient, pathParameters, requestBody, userId);
+        return await handleUpdate(dbClient, pathParameters, requestBody, userId, event);
       case 'DELETE':
-        return await handleDelete(dbClient, pathParameters, userId);
+        return await handleDelete(dbClient, pathParameters, userId, event);
       default:
         return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
@@ -55,7 +55,7 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleGet(dbClient, pathParameters, userId) {
+async function handleGet(dbClient, pathParameters, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (sessionId) {
@@ -161,7 +161,7 @@ async function handleGet(dbClient, pathParameters, userId) {
   }
 }
 
-async function handleGetAvailable(dbClient, userId) {
+async function handleGetAvailable(dbClient, userId, event) {
   const query = `
     SELECT s.session_id, s.name, s.description, s.status,
            s.created_at, o.name as overlay_name,
@@ -180,7 +180,7 @@ async function handleGetAvailable(dbClient, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ sessions: result.rows, total: result.rows.length }) };
 }
 
-async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
+async function handleGetSessionSubmissions(dbClient, pathParameters, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   // Check if user has access to this session
@@ -228,7 +228,7 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
 }
 
-async function handleCreate(dbClient, requestBody, userId) {
+async function handleCreate(dbClient, requestBody, userId, event) {
   const { overlay_id, name, description, project_name } = JSON.parse(requestBody);
 
   if (!overlay_id || !name) {
@@ -273,7 +273,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(session) };
 }
 
-async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
+async function handleUpdate(dbClient, pathParameters, requestBody, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
   if (!sessionId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
@@ -312,7 +312,7 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
-async function handleDelete(dbClient, pathParameters, userId) {
+async function handleDelete(dbClient, pathParameters, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
   if (!sessionId) {
     return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
@@ -344,7 +344,7 @@ async function handleDelete(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ message: 'Session archived', session_id: sessionId }) };
 }
 
-async function handleGetSessionReport(dbClient, pathParameters, userId) {
+async function handleGetSessionReport(dbClient, pathParameters, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (!sessionId) {
@@ -478,7 +478,7 @@ async function handleGetSessionReport(dbClient, pathParameters, userId) {
   return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(report) };
 }
 
-async function handleExportSession(dbClient, pathParameters, userId) {
+async function handleExportSession(dbClient, pathParameters, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (!sessionId) {
@@ -558,7 +558,7 @@ async function handleExportSession(dbClient, pathParameters, userId) {
   };
 }
 
-async function handleRemoveParticipant(dbClient, path, userId) {
+async function handleRemoveParticipant(dbClient, path, userId, event) {
   // Parse path: /production/sessions/{sessionId}/participants/{userIdToRemove}
   // or: /sessions/{sessionId}/participants/{userIdToRemove}
   const pathParts = path.split('/').filter(Boolean);
