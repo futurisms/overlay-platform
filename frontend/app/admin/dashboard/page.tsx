@@ -158,10 +158,10 @@ export default function AdminDashboardPage() {
         const uniqueUsers = new Map<string, { name: string; email: string }>();
 
         response.data.submissions.forEach((submission) => {
-          uniqueSessions.set(submission.session_id, submission.session_name);
+          uniqueSessions.set(submission.session_id || 'N/A', submission.session_name || 'Unknown Session');
           uniqueUsers.set(submission.submitted_by, {
-            name: submission.submitted_by_name,
-            email: submission.submitted_by_email,
+            name: submission.submitted_by_name || 'Unknown User',
+            email: submission.submitted_by_email || 'N/A',
           });
         });
 
