@@ -20,8 +20,9 @@ interface LoginResult {
 
 export async function login(email: string, password: string): Promise<LoginResult> {
   try {
-    // Use proxy server for Cognito to avoid CORS issues
-    const url = 'http://localhost:3001/cognito';
+    // Use environment-aware URL (proxy server in dev, API Gateway in production)
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+    const url = `${API_BASE_URL}/cognito`;
 
     const payload = {
       AuthFlow: 'USER_PASSWORD_AUTH',

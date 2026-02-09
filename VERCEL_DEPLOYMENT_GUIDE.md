@@ -83,17 +83,20 @@ Click **"Environment Variables"** section and add the following:
 
 | Name | Value | Environment |
 |------|-------|-------------|
-| `NEXT_PUBLIC_API_URL` | `https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production` | Production, Preview, Development |
+| `NEXT_PUBLIC_API_BASE_URL` | `https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production` | Production, Preview, Development |
 | `NEXT_PUBLIC_COGNITO_USER_POOL_ID` | `eu-west-1_lC25xZ8s6` | Production, Preview, Development |
 | `NEXT_PUBLIC_COGNITO_CLIENT_ID` | `4e45pdiobcm8qo3ehvi1bcmo2s` | Production, Preview, Development |
 | `NEXT_PUBLIC_COGNITO_REGION` | `eu-west-1` | Production, Preview, Development |
 
 **How to Add Each Variable:**
-1. Enter **Name** (e.g., `NEXT_PUBLIC_API_URL`)
+1. Enter **Name** (e.g., `NEXT_PUBLIC_API_BASE_URL`)
 2. Enter **Value** (copy exact value from table above)
 3. Select **All Environments** (Production, Preview, Development)
 4. Click **"Add"**
 5. Repeat for all 4 variables
+
+⚠️ **CRITICAL:** Variable name must be `NEXT_PUBLIC_API_BASE_URL` (not `NEXT_PUBLIC_API_URL`).
+This matches the codebase expectation in api-client.ts and auth.ts.
 
 ⚠️ **IMPORTANT:**
 - All variable names start with `NEXT_PUBLIC_` (required for Next.js client-side access)
