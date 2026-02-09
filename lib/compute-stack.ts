@@ -487,6 +487,7 @@ export class ComputeStack extends cdk.Stack {
           'X-Amz-Date',
           'X-Api-Key',
           'X-Amz-Security-Token',
+          'X-Amz-Target', // Required for Cognito auth endpoint
         ],
         maxAge: cdk.Duration.hours(1),
       },
