@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 const { canEdit } = require('/opt/nodejs/permissions');
 
 exports.handler = async (event) => {
@@ -27,11 +28,11 @@ exports.handler = async (event) => {
       case 'DELETE':
         return await handleDelete(dbClient, pathParameters, userId);
       default:
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
@@ -52,7 +53,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     const overlayResult = await dbClient.query(overlayQuery, [overlayId]);
 
     if (overlayResult.rows.length === 0) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Overlay not found' }) };
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay not found' }) };
     }
 
     // Get evaluation criteria
@@ -81,7 +82,7 @@ async function handleGet(dbClient, pathParameters, userId) {
       criteria_text: c.criteria_text || '',  // Include detailed criteria text
     }));
 
-    return { statusCode: 200, body: JSON.stringify(overlay) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(overlay) };
   } else {
     // List all overlays
     const query = `
@@ -98,6 +99,7 @@ async function handleGet(dbClient, pathParameters, userId) {
 
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ overlays: result.rows, total: result.rows.length }),
     };
   }
@@ -107,7 +109,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   const { name, description, document_type, configuration, criteria } = JSON.parse(requestBody);
 
   if (!name || !document_type) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Name and document_type required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Name and document_type required' }) };
   }
 
   // Check permissions - only admins can create overlays
@@ -115,18 +117,18 @@ async function handleCreate(dbClient, requestBody, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can create overlays' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can create overlays' }) };
   }
 
   // Get current user's organization
   const orgId = user.organization_id;
 
   if (!orgId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'User organization not found' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User organization not found' }) };
   }
 
   // Create overlay
@@ -160,13 +162,13 @@ async function handleCreate(dbClient, requestBody, userId) {
   }
 
   console.log(`Overlay created: ${overlay.overlay_id}`);
-  return { statusCode: 201, body: JSON.stringify(overlay) };
+  return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(overlay) };
 }
 
 async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Overlay ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay ID required' }) };
   }
 
   // Check permissions - only admins can edit overlays
@@ -174,11 +176,11 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can edit overlays' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can edit overlays' }) };
   }
 
   const { name, description, document_type, configuration, is_active, criteria } = JSON.parse(requestBody);
@@ -205,7 +207,7 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   ]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Overlay not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay not found' }) };
   }
 
   // Handle criteria updates if provided
@@ -277,13 +279,13 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
     console.log(`Successfully processed ${criteria.length} criteria for overlay ${overlayId}`);
   }
 
-  return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
 async function handleDelete(dbClient, pathParameters, userId) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
   if (!overlayId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Overlay ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay ID required' }) };
   }
 
   // Check permissions - only admins can delete overlays
@@ -291,11 +293,11 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can delete overlays' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can delete overlays' }) };
   }
 
   const query = `
@@ -306,8 +308,8 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [overlayId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Overlay not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Overlay not found' }) };
   }
 
-  return { statusCode: 200, body: JSON.stringify({ message: 'Overlay deleted', overlay_id: overlayId }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ message: 'Overlay deleted', overlay_id: overlayId }) };
 }

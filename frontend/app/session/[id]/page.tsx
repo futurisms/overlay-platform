@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
+import { toast } from "sonner";
 
 interface Submission {
   submission_id: string;
@@ -52,6 +53,15 @@ interface Submission {
   submitted_at: string;
   submitted_by_name: string;
   overall_score: number | null;
+}
+
+interface Participant {
+  user_id: string;
+  role: string;
+  joined_at: string;
+  first_name: string;
+  last_name: string;
+  email: string;
 }
 
 interface Overlay {
@@ -98,6 +108,12 @@ export default function SessionPage() {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [participantToRemove, setParticipantToRemove] = useState<{
+    userId: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
 
   useEffect(() => {
     // Check authentication
@@ -464,12 +480,70 @@ export default function SessionPage() {
     setInviteLink(null);
   };
 
+  const handleRemoveParticipant = async () => {
+    if (!participantToRemove) return;
+
+    const { userId, firstName, lastName } = participantToRemove;
+    setRemovingUserId(userId);
+
+    try {
+      const response = await apiClient.revokeSessionAccess(sessionId, userId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Immediately update participants list in UI for instant feedback
+      if (session && session.participants) {
+        const updatedSession = {
+          ...session,
+          participants: session.participants.filter((p: any) => p.user_id !== userId)
+        };
+        setSession(updatedSession);
+      }
+
+      // Show success message
+      toast.success(`${firstName} ${lastName} removed from session`);
+
+      // Close dialog
+      setParticipantToRemove(null);
+
+      // Refresh data from server in background to ensure consistency
+      await loadSessionData();
+
+    } catch (error) {
+      console.error('Error removing participant:', error);
+      toast.error('Failed to remove participant. Please try again.');
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
   const isAdmin = () => {
     const roleCheck = currentUser?.role === 'admin';
     const groupCheck = currentUser?.groups?.includes('system_admin');
     const result = roleCheck || groupCheck;
     console.log('🔍 DEBUG isAdmin(): currentUser?.role =', currentUser?.role, '| currentUser?.groups =', currentUser?.groups, '| roleCheck =', roleCheck, '| groupCheck =', groupCheck, '| Result:', result);
     return result;
+  };
+
+  // Helper functions for participants display
+  const getUserInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const getRoleBadgeVariant = (role: string): "default" | "secondary" | "outline" => {
+    if (role === 'admin' || role === 'owner' || role === 'moderator') return 'default';
+    if (role === 'reviewer') return 'secondary';
+    return 'outline';
+  };
+
+  const formatJoinedDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   if (isLoading) {
@@ -1147,6 +1221,84 @@ export default function SessionPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Participants Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Session Participants ({session?.participants?.length || 0})
+            </CardTitle>
+            <CardDescription>Users with access to this analysis session</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!session?.participants || session.participants.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                <p className="text-slate-600 dark:text-slate-400 mb-2">No participants yet</p>
+                <p className="text-sm text-slate-500 dark:text-slate-500">
+                  Invite users to collaborate on this session
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {session.participants.map((participant: Participant) => (
+                  <div
+                    key={participant.user_id}
+                    className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:border-blue-500 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Avatar with initials */}
+                      <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                        {getUserInitials(participant.first_name || 'U', participant.last_name || 'N')}
+                      </div>
+
+                      {/* Participant details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-sm truncate">
+                            {participant.first_name} {participant.last_name}
+                          </p>
+                          <Badge variant={getRoleBadgeVariant(participant.role)} className="text-xs">
+                            {participant.role}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 truncate mb-1">
+                          {participant.email}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                          Joined {formatJoinedDate(participant.joined_at)}
+                        </p>
+                      </div>
+
+                      {/* Remove button (admin only, can't remove self) */}
+                      {isAdmin() && participant.user_id !== currentUser?.sub && (
+                        <button
+                          onClick={() => setParticipantToRemove({
+                            userId: participant.user_id,
+                            firstName: participant.first_name,
+                            lastName: participant.last_name
+                          })}
+                          disabled={removingUserId === participant.user_id}
+                          className={`text-red-500 hover:text-red-700 transition-colors flex-shrink-0 ${
+                            removingUserId === participant.user_id ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          title="Remove access"
+                        >
+                          {removingUserId === participant.user_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Submissions List */}
         <Card>
           <CardHeader>
@@ -1252,6 +1404,47 @@ export default function SessionPage() {
                 ) : (
                   'Delete'
                 )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Remove Participant Confirmation Dialog */}
+        <AlertDialog
+          open={participantToRemove !== null}
+          onOpenChange={(open) => !open && setParticipantToRemove(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Participant?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>
+                    Are you sure you want to remove{' '}
+                    <span className="font-semibold">
+                      {participantToRemove?.firstName} {participantToRemove?.lastName}
+                    </span>{' '}
+                    from this session?
+                  </p>
+                  <p className="text-red-600 text-sm">
+                    They will immediately lose access to all submissions in this session.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={removingUserId !== null}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleRemoveParticipant();
+                }}
+                disabled={removingUserId !== null}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              >
+                {removingUserId ? 'Removing...' : 'Remove Participant'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

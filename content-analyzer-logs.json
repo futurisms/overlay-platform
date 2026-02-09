@@ -1,0 +1,47 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/02/03/[$LATEST]58317e938f904d9680d2a4dac7577204",
+            "timestamp": 1770118048772,
+            "message": "2026-02-03T11:27:28.772Z\t33d75a2d-5c1a-475e-b08e-21848819098d\tINFO\tToken usage: 4609 input, 1776 output\n",
+            "ingestionTime": 1770118057788,
+            "eventId": "39474951576984574398924415840150130589068288487164674049"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]58317e938f904d9680d2a4dac7577204",
+            "timestamp": 1770118048772,
+            "message": "2026-02-03T11:27:28.772Z\t33d75a2d-5c1a-475e-b08e-21848819098d\tINFO\t[Token Tracking] Saving tokens for content-analyzer: input=4609, output=1776, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770118057788,
+            "eventId": "39474951576984574398924415840150130589068288487164674050"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]58317e938f904d9680d2a4dac7577204",
+            "timestamp": 1770118048777,
+            "message": "2026-02-03T11:27:28.777Z\t33d75a2d-5c1a-475e-b08e-21848819098d\tERROR\t[Token Tracking] Error saving tokens for content-analyzer: relation \"token_usage\" does not exist\n",
+            "ingestionTime": 1770118057788,
+            "eventId": "39474951577096078124917068955857809180431530294694576131"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]adaae73eff144a6ca6bb98c8fdf7c7c7",
+            "timestamp": 1770119663866,
+            "message": "2026-02-03T11:54:23.866Z\t58791393-411a-412e-a950-345ab3722b29\tINFO\tToken usage: 4597 input, 1785 output\n",
+            "ingestionTime": 1770119672881,
+            "eventId": "39474987594784340074542669948167132162710445747247185921"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]adaae73eff144a6ca6bb98c8fdf7c7c7",
+            "timestamp": 1770119663866,
+            "message": "2026-02-03T11:54:23.866Z\t58791393-411a-412e-a950-345ab3722b29\tINFO\t[Token Tracking] Saving tokens for content-analyzer: input=4597, output=1785, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770119672881,
+            "eventId": "39474987594784340074542669948167132162710445747247185922"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]adaae73eff144a6ca6bb98c8fdf7c7c7",
+            "timestamp": 1770119663878,
+            "message": "2026-02-03T11:54:23.878Z\t58791393-411a-412e-a950-345ab3722b29\tINFO\t[Token Tracking] Saved successfully: 6382 total tokens\n",
+            "ingestionTime": 1770119672881,
+            "eventId": "39474987595051949016925037425865560781982226085318950915"
+        }
+    ],
+    "searchedLogStreams": []
+}

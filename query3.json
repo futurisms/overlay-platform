@@ -1,0 +1,1 @@
+{"statusCode":200,"body":"{\"success\":true,\"message\":\"Query executed successfully\",\"rowCount\":2,\"rows\":[{\"status\":\"active\",\"count\":\"1\"},{\"status\":\"inactive\",\"count\":\"3\"}]}"}

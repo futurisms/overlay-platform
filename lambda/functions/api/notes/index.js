@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 
 exports.handler = async (event) => {
   console.log('Notes Handler:', JSON.stringify(event));
@@ -26,11 +27,11 @@ exports.handler = async (event) => {
       case 'DELETE':
         return await handleDelete(dbClient, pathParameters, userId);
       default:
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
@@ -50,17 +51,17 @@ async function handleGet(dbClient, pathParameters, userId) {
     const result = await dbClient.query(query, [noteId]);
 
     if (result.rows.length === 0) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Note not found' }) };
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Note not found' }) };
     }
 
     const note = result.rows[0];
 
     // Verify note belongs to user
     if (note.user_id !== userId) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Access denied' }) };
+      return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Access denied' }) };
     }
 
-    return { statusCode: 200, body: JSON.stringify(note) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(note) };
   } else {
     // List user's notes sorted by created_at DESC
     const query = `
@@ -75,6 +76,7 @@ async function handleGet(dbClient, pathParameters, userId) {
 
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         notes: result.rows,
         total: result.rows.length
@@ -88,12 +90,12 @@ async function handleCreate(dbClient, requestBody, userId) {
 
   // Validate required fields
   if (!title || !content) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'title and content are required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'title and content are required' }) };
   }
 
   // Validate title length
   if (title.length > 255) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'title must be 255 characters or less' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'title must be 255 characters or less' }) };
   }
 
   // If session_id provided, verify it exists
@@ -103,7 +105,7 @@ async function handleCreate(dbClient, requestBody, userId) {
       [session_id]
     );
     if (sessionCheck.rows.length === 0) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid session_id' }) };
+      return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invalid session_id' }) };
     }
   }
 
@@ -124,8 +126,9 @@ async function handleCreate(dbClient, requestBody, userId) {
   console.log(`Note created: ${note.note_id} by user ${userId}`);
 
   return {
-    statusCode: 201,
-    body: JSON.stringify({
+      statusCode: 201,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       note_id: note.note_id,
       created_at: note.created_at
     })
@@ -136,19 +139,19 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const noteId = pathParameters?.noteId || pathParameters?.id;
 
   if (!noteId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Note ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Note ID required' }) };
   }
 
   const { title, content, ai_summary } = JSON.parse(requestBody);
 
   // Must provide at least one field to update
   if (!title && !content && !ai_summary) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'No fields to update' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'No fields to update' }) };
   }
 
   // Validate title length if provided
   if (title && title.length > 255) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'title must be 255 characters or less' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'title must be 255 characters or less' }) };
   }
 
   // Verify note exists and belongs to user
@@ -158,11 +161,11 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   );
 
   if (ownershipCheck.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Note not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Note not found' }) };
   }
 
   if (ownershipCheck.rows[0].user_id !== userId) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Access denied' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Access denied' }) };
   }
 
   // Update note
@@ -184,8 +187,9 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   console.log(`Note updated: ${noteId} by user ${userId}`);
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       note_id: result.rows[0].note_id,
       updated_at: result.rows[0].updated_at
     })
@@ -196,7 +200,7 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const noteId = pathParameters?.noteId || pathParameters?.id;
 
   if (!noteId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Note ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Note ID required' }) };
   }
 
   // Verify note exists and belongs to user
@@ -206,11 +210,11 @@ async function handleDelete(dbClient, pathParameters, userId) {
   );
 
   if (ownershipCheck.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Note not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Note not found' }) };
   }
 
   if (ownershipCheck.rows[0].user_id !== userId) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Access denied' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Access denied' }) };
   }
 
   // Delete note
@@ -220,7 +224,8 @@ async function handleDelete(dbClient, pathParameters, userId) {
   console.log(`Note deleted: ${noteId} by user ${userId}`);
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({ success: true, note_id: noteId })
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({ success: true, note_id: noteId })
   };
 }

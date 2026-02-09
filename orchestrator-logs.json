@@ -1,0 +1,47 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/02/03/[$LATEST]d018f333891640c1a861ec02869ebec6",
+            "timestamp": 1770118067875,
+            "message": "2026-02-03T11:27:47.875Z\t629dea86-d791-4ee0-b7d9-382a86130165\tINFO\tToken usage: 647 input, 351 output\n",
+            "ingestionTime": 1770118076872,
+            "eventId": "39474952002995709926454909735978124700840160491065835521"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]d018f333891640c1a861ec02869ebec6",
+            "timestamp": 1770118067875,
+            "message": "2026-02-03T11:27:47.875Z\t629dea86-d791-4ee0-b7d9-382a86130165\tINFO\t[Token Tracking] Saving tokens for orchestrator: input=647, output=351, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770118076872,
+            "eventId": "39474952002995709926454909735978124700840160491065835522"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]d018f333891640c1a861ec02869ebec6",
+            "timestamp": 1770118067917,
+            "message": "2026-02-03T11:27:47.917Z\t629dea86-d791-4ee0-b7d9-382a86130165\tERROR\t[Token Tracking] Error saving tokens for orchestrator: relation \"token_usage\" does not exist\n",
+            "ingestionTime": 1770118076872,
+            "eventId": "39474952003932341224793195907922624868291391674317012995"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]c5a18e02e209457daaf84c5f9ce5ea0a",
+            "timestamp": 1770119694324,
+            "message": "2026-02-03T11:54:54.324Z\ta14d9063-7941-4445-b739-86d6ae7f8e6c\tINFO\tToken usage: 704 input, 866 output\n",
+            "ingestionTime": 1770119703338,
+            "eventId": "39474988274020437331388389629882527726669996391459061761"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]c5a18e02e209457daaf84c5f9ce5ea0a",
+            "timestamp": 1770119694325,
+            "message": "2026-02-03T11:54:54.325Z\ta14d9063-7941-4445-b739-86d6ae7f8e6c\tINFO\t[Token Tracking] Saving tokens for orchestrator: input=704, output=866, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770119703338,
+            "eventId": "39474988274042738076586920253024063444942644752965042178"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]c5a18e02e209457daaf84c5f9ce5ea0a",
+            "timestamp": 1770119694331,
+            "message": "2026-02-03T11:54:54.331Z\ta14d9063-7941-4445-b739-86d6ae7f8e6c\tINFO\t[Token Tracking] Saved successfully: 1570 total tokens\n",
+            "ingestionTime": 1770119703338,
+            "eventId": "39474988274176542547778103991873277754578534922000924675"
+        }
+    ],
+    "searchedLogStreams": []
+}

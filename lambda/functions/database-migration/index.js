@@ -207,6 +207,26 @@ exports.handler = async (event) => {
     // Connect to database
     client = await connectToDatabase(credentials);
 
+    // Check if this is a query request (not migration)
+    if (event.querySQL) {
+      console.log('Executing ad-hoc query:', event.querySQL);
+
+      const result = await client.query(event.querySQL);
+
+      console.log(`Query returned ${result.rows.length} rows`);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          success: true,
+          message: 'Query executed successfully',
+          rowCount: result.rows.length,
+          rows: result.rows,
+        }),
+      };
+    }
+
+    // Otherwise, run migrations
     const results = {
       migrations: [],
       verification: null,

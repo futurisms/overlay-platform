@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 const { canEdit, hasSessionAccess, getAccessibleSessions, revokeSessionAccess } = require('/opt/nodejs/permissions');
 
 exports.handler = async (event) => {
@@ -44,11 +45,11 @@ exports.handler = async (event) => {
       case 'DELETE':
         return await handleDelete(dbClient, pathParameters, userId);
       default:
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
@@ -61,7 +62,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     // Check if user has access to this session
     const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
     if (!hasAccess) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+      return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
     }
 
     // Get specific session with participants
@@ -76,7 +77,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     const sessionResult = await dbClient.query(sessionQuery, [sessionId]);
 
     if (sessionResult.rows.length === 0) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session not found' }) };
     }
 
     // Get user role to determine filtering
@@ -131,7 +132,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     session.submissions = submissionsResult.rows;
     session.submission_count = submissionsResult.rows.length;
 
-    return { statusCode: 200, body: JSON.stringify(session) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(session) };
   } else {
     // List user's accessible sessions (admins see all, analysts see assigned)
     console.log('='.repeat(70));
@@ -156,7 +157,7 @@ async function handleGet(dbClient, pathParameters, userId) {
       session.submission_count = parseInt(countsResult.rows[0].submission_count);
     }
 
-    return { statusCode: 200, body: JSON.stringify({ sessions, total: sessions.length }) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ sessions, total: sessions.length }) };
   }
 }
 
@@ -176,7 +177,7 @@ async function handleGetAvailable(dbClient, userId) {
   `;
   const result = await dbClient.query(query, [userId]);
 
-  return { statusCode: 200, body: JSON.stringify({ sessions: result.rows, total: result.rows.length }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ sessions: result.rows, total: result.rows.length }) };
 }
 
 async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
@@ -185,7 +186,7 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
   // Check if user has access to this session
   const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
   if (!hasAccess) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
   // Get user role to determine filtering
@@ -224,14 +225,14 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
 
   const result = await dbClient.query(query, params);
 
-  return { statusCode: 200, body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
 }
 
 async function handleCreate(dbClient, requestBody, userId) {
   const { overlay_id, name, description, project_name } = JSON.parse(requestBody);
 
   if (!overlay_id || !name) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'overlay_id and name required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'overlay_id and name required' }) };
   }
 
   // Check permissions - only admins can create sessions
@@ -239,18 +240,18 @@ async function handleCreate(dbClient, requestBody, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can create sessions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can create sessions' }) };
   }
 
   // Get current user's organization
   const orgId = user.organization_id;
 
   if (!orgId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'User organization not found' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User organization not found' }) };
   }
 
   // Create session
@@ -269,13 +270,13 @@ async function handleCreate(dbClient, requestBody, userId) {
   );
 
   console.log(`Session created: ${session.session_id}`);
-  return { statusCode: 201, body: JSON.stringify(session) };
+  return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(session) };
 }
 
 async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
   if (!sessionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
   // Check permissions - only admins can update sessions
@@ -283,11 +284,11 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can update sessions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can update sessions' }) };
   }
 
   const { name, description, status, project_name } = JSON.parse(requestBody);
@@ -305,16 +306,16 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
   const result = await dbClient.query(query, [sessionId, name || null, description || null, status || null, project_name || null]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session not found' }) };
   }
 
-  return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
 async function handleDelete(dbClient, pathParameters, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
   if (!sessionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
   // Check permissions - only admins can delete sessions
@@ -322,11 +323,11 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canEdit(user)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can delete sessions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can delete sessions' }) };
   }
 
   const query = `
@@ -337,23 +338,23 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [sessionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session not found' }) };
   }
 
-  return { statusCode: 200, body: JSON.stringify({ message: 'Session archived', session_id: sessionId }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ message: 'Session archived', session_id: sessionId }) };
 }
 
 async function handleGetSessionReport(dbClient, pathParameters, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (!sessionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
   // Check if user has access to this session
   const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
   if (!hasAccess) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
   // Get session details
@@ -369,7 +370,7 @@ async function handleGetSessionReport(dbClient, pathParameters, userId) {
   const sessionResult = await dbClient.query(sessionQuery, [sessionId]);
 
   if (sessionResult.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session not found' }) };
   }
 
   // Get submission statistics
@@ -474,20 +475,20 @@ async function handleGetSessionReport(dbClient, pathParameters, userId) {
     }))
   };
 
-  return { statusCode: 200, body: JSON.stringify(report) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(report) };
 }
 
 async function handleExportSession(dbClient, pathParameters, userId) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (!sessionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
   // Check if user has access to this session
   const hasAccess = await hasSessionAccess(dbClient, userId, sessionId);
   if (!hasAccess) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: No access to this session' }) };
   }
 
   // Get all submissions with scores
@@ -548,8 +549,10 @@ async function handleExportSession(dbClient, pathParameters, userId) {
   return {
     statusCode: 200,
     headers: {
+        ...getCorsHeaders(event),
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="session-${sessionId}-export.csv"`
+      'Content-Disposition': `attachment; filename="session-${sessionId
+      }-export.csv"`
     },
     body: csv
   };
@@ -565,7 +568,7 @@ async function handleRemoveParticipant(dbClient, path, userId) {
 
   if (participantsIndex === -1 || participantsIndex < 2 || participantsIndex + 1 >= pathParts.length) {
     console.log('Invalid path format:', { path, pathParts, participantsIndex });
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid path format' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invalid path format' }) };
   }
 
   // sessionId is the part before 'participants'
@@ -578,11 +581,11 @@ async function handleRemoveParticipant(dbClient, path, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (user.user_role !== 'admin') {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Admin access required' }) };
   }
 
   // Revoke access using existing permission helper
@@ -591,8 +594,9 @@ async function handleRemoveParticipant(dbClient, path, userId) {
   console.log(`Participant ${userIdToRemove} removed from session ${sessionId} by admin ${userId}`);
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       success: true,
       message: 'Participant access revoked'
     })

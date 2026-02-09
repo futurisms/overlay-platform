@@ -1,2 +1,47 @@
-
-An error occurred (InvalidParameterException) when calling the FilterLogEvents operation: 1 validation error detected: Value 'C:/Program Files/Git/aws/lambda/overlay-scoring' at 'logGroupName' failed to satisfy constraint: Member must satisfy regular expression pattern: [\.\-_/#A-Za-z0-9]+
+{
+    "events": [
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ccc44740cc8149468544c382eaa3abf4",
+            "timestamp": 1770118108650,
+            "message": "2026-02-03T11:28:28.650Z\t8b19ee06-d70f-4459-bc3e-6d2945eebd66\tINFO\tToken usage: 4079 input, 2417 output\n",
+            "ingestionTime": 1770118117663,
+            "eventId": "39474952912308595396541068381410540251612579862718578689"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ccc44740cc8149468544c382eaa3abf4",
+            "timestamp": 1770118108651,
+            "message": "2026-02-03T11:28:28.651Z\t8b19ee06-d70f-4459-bc3e-6d2945eebd66\tINFO\t[Token Tracking] Saving tokens for scoring: input=4079, output=2417, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770118117663,
+            "eventId": "39474952912330896141739599004552075969885228224224559106"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ccc44740cc8149468544c382eaa3abf4",
+            "timestamp": 1770118108654,
+            "message": "2026-02-03T11:28:28.654Z\t8b19ee06-d70f-4459-bc3e-6d2945eebd66\tERROR\t[Token Tracking] Error saving tokens for scoring: relation \"token_usage\" does not exist\n",
+            "ingestionTime": 1770118117663,
+            "eventId": "39474952912397798377335190873976683124703173308742500355"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]1b8b83bf74104a4d8f220117c982ffaa",
+            "timestamp": 1770119747854,
+            "message": "2026-02-03T11:55:47.854Z\tb06dbbb1-94fc-400a-9bd5-c3df3a9f7bbb\tINFO\tToken usage: 4598 input, 2336 output\n",
+            "ingestionTime": 1770119756870,
+            "eventId": "39474989467779327808732646461005511191396909321731637249"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]1b8b83bf74104a4d8f220117c982ffaa",
+            "timestamp": 1770119747855,
+            "message": "2026-02-03T11:55:47.855Z\tb06dbbb1-94fc-400a-9bd5-c3df3a9f7bbb\tINFO\t[Token Tracking] Saving tokens for scoring: input=4598, output=2336, model=claude-sonnet-4-5-20250929\n",
+            "ingestionTime": 1770119756870,
+            "eventId": "39474989467801628553931177084147046909669557683237617666"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]1b8b83bf74104a4d8f220117c982ffaa",
+            "timestamp": 1770119747861,
+            "message": "2026-02-03T11:55:47.861Z\tb06dbbb1-94fc-400a-9bd5-c3df3a9f7bbb\tINFO\t[Token Tracking] Saved successfully: 6934 total tokens\n",
+            "ingestionTime": 1770119756870,
+            "eventId": "39474989467935433025122360822996261219305447852273500163"
+        }
+    ],
+    "searchedLogStreams": []
+}

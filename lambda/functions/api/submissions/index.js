@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { SFNClient, StartExecutionCommand } = require('@aws-sdk/client-sfn');
@@ -54,11 +55,11 @@ exports.handler = async (event) => {
       case 'DELETE':
         return await handleDelete(dbClient, pathParameters, userId);
       default:
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
@@ -84,7 +85,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     const result = await dbClient.query(query, [submissionId]);
 
     if (result.rows.length === 0) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
     }
 
     const submission = result.rows[0];
@@ -94,17 +95,17 @@ async function handleGet(dbClient, pathParameters, userId) {
     const user = userQuery.rows[0];
 
     if (!user) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
     }
 
     if (!canViewSubmission(user, submission)) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+      return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
     }
 
     // Ensure appendix_files is always an array (backward compatibility)
     submission.appendix_files = submission.appendix_files || [];
 
-    return { statusCode: 200, body: JSON.stringify(submission) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(submission) };
   } else {
     // List user's submissions
     const query = `
@@ -120,7 +121,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     `;
     const result = await dbClient.query(query, [userId]);
 
-    return { statusCode: 200, body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ submissions: result.rows, total: result.rows.length }) };
   }
 }
 
@@ -132,7 +133,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Get submission metadata
@@ -144,7 +145,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [submissionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = result.rows[0];
@@ -154,11 +155,11 @@ async function handleGetContent(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
   }
   const { document_name, s3_bucket, s3_key, appendix_files } = submission;
 
@@ -236,6 +237,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
     // Return structured response
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         submission_id: submissionId,
         main_document: {
@@ -250,6 +252,7 @@ async function handleGetContent(dbClient, pathParameters, userId) {
     console.error('[Content] Error fetching content:', error);
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Failed to fetch submission content', details: error.message }),
     };
   }
@@ -259,7 +262,7 @@ async function handleCreate(dbClient, requestBody, userId) {
   const { overlay_id, session_id, document_name, document_content, is_pasted_text, appendices } = JSON.parse(requestBody);
 
   if (!overlay_id || !document_name || !document_content) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'overlay_id, document_name, and document_content required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'overlay_id, document_name, and document_content required' }) };
   }
 
   // Validate appendices structure if provided (frontend sends base64 content)
@@ -267,15 +270,15 @@ async function handleCreate(dbClient, requestBody, userId) {
   if (appendicesArray.length > 0) {
     for (const appendix of appendicesArray) {
       if (!appendix.file_name || !appendix.file_content || !appendix.file_size || typeof appendix.upload_order !== 'number') {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid appendix structure. Required: file_name, file_content (base64), file_size, upload_order' }) };
+        return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invalid appendix structure. Required: file_name, file_content (base64), file_size, upload_order' }) };
       }
       // Validate PDF format
       if (!appendix.file_name.toLowerCase().endsWith('.pdf')) {
-        return { statusCode: 400, body: JSON.stringify({ error: `Appendix "${appendix.file_name}" must be a PDF file` }) };
+        return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: `Appendix "${appendix.file_name}" must be a PDF file` }) };
       }
       // Validate max size (5MB)
       if (appendix.file_size > 5 * 1024 * 1024) {
-        return { statusCode: 400, body: JSON.stringify({ error: `Appendix "${appendix.file_name}" exceeds 5MB limit` }) };
+        return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: `Appendix "${appendix.file_name}" exceeds 5MB limit` }) };
       }
     }
     console.log(`Creating submission with ${appendicesArray.length} appendices`);
@@ -314,6 +317,7 @@ async function handleCreate(dbClient, requestBody, userId) {
     console.error('S3 upload error:', error);
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Failed to upload document', details: error.message }),
     };
   }
@@ -351,8 +355,9 @@ async function handleCreate(dbClient, requestBody, userId) {
       } catch (error) {
         console.error(`Failed to upload appendix ${appendix.upload_order}:`, error);
         return {
-          statusCode: 500,
-          body: JSON.stringify({ error: `Failed to upload appendix "${appendix.file_name}"`, details: error.message }),
+      statusCode: 500,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({ error: `Failed to upload appendix "${appendix.file_name}"`, details: error.message }),
         };
       }
     }
@@ -402,13 +407,13 @@ async function handleCreate(dbClient, requestBody, userId) {
   }
 
   console.log(`Submission created: ${submission.submission_id}`);
-  return { statusCode: 201, body: JSON.stringify(submission) };
+  return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(submission) };
 }
 
 async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Check if user has permission to update this submission
@@ -420,7 +425,7 @@ async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
   const checkResult = await dbClient.query(checkQuery, [submissionId]);
 
   if (checkResult.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = checkResult.rows[0];
@@ -429,11 +434,11 @@ async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only update your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only update your own submissions' }) };
   }
 
   const { status, ai_analysis_status } = JSON.parse(requestBody);
@@ -452,16 +457,16 @@ async function handleUpdate(dbClient, pathParameters, userId, requestBody) {
   const result = await dbClient.query(query, [submissionId, status || null, ai_analysis_status || null]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
-  return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
 
 async function handleDelete(dbClient, pathParameters, userId) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Check if user has permission to delete this submission
@@ -473,7 +478,7 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const checkResult = await dbClient.query(checkQuery, [submissionId]);
 
   if (checkResult.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = checkResult.rows[0];
@@ -482,11 +487,11 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only delete your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only delete your own submissions' }) };
   }
 
   // Hard delete for submissions (could be soft delete if preferred)
@@ -498,10 +503,10 @@ async function handleDelete(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [submissionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
-  return { statusCode: 200, body: JSON.stringify({ message: 'Submission deleted', submission_id: submissionId }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ message: 'Submission deleted', submission_id: submissionId }) };
 }
 
 async function handleGetAnalysis(dbClient, pathParameters, userId) {
@@ -516,7 +521,7 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
   const submissionResult = await dbClient.query(submissionQuery, [submissionId]);
 
   if (submissionResult.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = submissionResult.rows[0];
@@ -526,17 +531,18 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
   }
 
   // If analysis is not complete, return status
   if (submission.ai_analysis_status !== 'completed') {
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         status: submission.ai_analysis_status,
         message: 'Analysis in progress',
@@ -599,14 +605,14 @@ async function handleGetAnalysis(dbClient, pathParameters, userId) {
   analysis.scoring = analysis.agents['scoring']?.result;
   analysis.clarification = analysis.agents['clarification']?.result;
 
-  return { statusCode: 200, body: JSON.stringify(analysis) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(analysis) };
 }
 
 async function handleGetFeedback(dbClient, pathParameters, userId) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Check if user has permission to view this submission
@@ -618,7 +624,7 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
   const submissionResult = await dbClient.query(submissionQuery, [submissionId]);
 
   if (submissionResult.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = submissionResult.rows[0];
@@ -627,11 +633,11 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only view your own submissions' }) };
   }
 
   // Get AI analysis results (scoring agent saves to feedback_reports)
@@ -647,6 +653,7 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
   if (scoringResult.rows.length === 0) {
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         error: 'Feedback not found',
         message: 'Analysis may not be complete or no feedback has been generated yet'
@@ -705,14 +712,14 @@ async function handleGetFeedback(dbClient, pathParameters, userId) {
     generated_by: 'ai-scoring-agent'
   };
 
-  return { statusCode: 200, body: JSON.stringify(completeFeedback) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify(completeFeedback) };
 }
 
 async function handleDownloadFile(dbClient, pathParameters, userId) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Get submission S3 details
@@ -724,7 +731,7 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [submissionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = result.rows[0];
@@ -734,11 +741,11 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
   }
 
   const { s3_bucket, s3_key, document_name } = submission;
@@ -754,6 +761,7 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
     const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         download_url: presignedUrl,
         file_name: document_name,
@@ -762,7 +770,7 @@ async function handleDownloadFile(dbClient, pathParameters, userId) {
     };
   } catch (error) {
     console.error('Error generating presigned URL:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to generate download URL' }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Failed to generate download URL' }) };
   }
 }
 
@@ -771,11 +779,11 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
   const appendixOrder = pathParameters?.order;
 
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   if (!appendixOrder) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Appendix order required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Appendix order required' }) };
   }
 
   // Get submission S3 bucket and appendix files
@@ -787,7 +795,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [submissionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const submission = result.rows[0];
@@ -797,11 +805,11 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, submission)) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
   }
 
   const { s3_bucket, appendix_files } = submission;
@@ -811,7 +819,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
   const appendix = appendices.find(a => a.upload_order === parseInt(appendixOrder));
 
   if (!appendix) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Appendix not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Appendix not found' }) };
   }
 
   // Generate presigned URL (valid for 15 minutes)
@@ -825,6 +833,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
     const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         download_url: presignedUrl,
         file_name: appendix.file_name,
@@ -833,7 +842,7 @@ async function handleDownloadAppendix(dbClient, pathParameters, userId) {
     };
   } catch (error) {
     console.error('Error generating presigned URL:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to generate download URL' }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Failed to generate download URL' }) };
   }
 }
 
@@ -841,7 +850,7 @@ async function handleDownload(dbClient, pathParameters, userId) {
   const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
   if (!submissionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
   }
 
   // Get submission and feedback data
@@ -868,7 +877,7 @@ async function handleDownload(dbClient, pathParameters, userId) {
   const result = await dbClient.query(query, [submissionId]);
 
   if (result.rows.length === 0) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'Submission not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission not found' }) };
   }
 
   const data = result.rows[0];
@@ -878,11 +887,11 @@ async function handleDownload(dbClient, pathParameters, userId) {
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!canViewSubmission(user, { submitted_by: data.submitted_by })) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
+    return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: You can only download your own submissions' }) };
   }
 
   // Get criterion scores
@@ -919,8 +928,10 @@ async function handleDownload(dbClient, pathParameters, userId) {
   return {
     statusCode: 200,
     headers: {
+        ...getCorsHeaders(event),
       'Content-Type': 'application/json',
-      'Content-Disposition': `attachment; filename="feedback-${submissionId}.json"`
+      'Content-Disposition': `attachment; filename="feedback-${submissionId
+      }.json"`
     },
     body: JSON.stringify(downloadData)
   };

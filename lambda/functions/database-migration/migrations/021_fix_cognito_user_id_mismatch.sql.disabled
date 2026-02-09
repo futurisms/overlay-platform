@@ -1,0 +1,24 @@
+-- Migration 021: Fix Cognito user_id mismatch for bains@futurisms.ai
+-- Problem: PostgreSQL user has different user_id than Cognito user
+-- Cognito user_id (sub): 928514c4-f0b1-70db-85cf-8d2cd438f0eb
+-- Email: bains@futurisms.ai
+
+-- Update the user's user_id to match Cognito
+UPDATE users
+SET user_id = '928514c4-f0b1-70db-85cf-8d2cd438f0eb'
+WHERE email = 'bains@futurisms.ai'
+  AND user_id != '928514c4-f0b1-70db-85cf-8d2cd438f0eb';
+
+-- Update session_participants to use the new user_id
+UPDATE session_participants
+SET user_id = '928514c4-f0b1-70db-85cf-8d2cd438f0eb'
+WHERE user_id = (
+  SELECT accepted_by FROM user_invitations WHERE email = 'bains@futurisms.ai'
+);
+
+-- Update user_invitations accepted_by to use the new user_id
+UPDATE user_invitations
+SET accepted_by = '928514c4-f0b1-70db-85cf-8d2cd438f0eb'
+WHERE email = 'bains@futurisms.ai'
+  AND accepted_by IS NOT NULL
+  AND accepted_by != '928514c4-f0b1-70db-85cf-8d2cd438f0eb';

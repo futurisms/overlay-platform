@@ -1,0 +1,47 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ec0ba5f58276430ab5e320e0f8c56bf0",
+            "timestamp": 1770117999829,
+            "message": "2026-02-03T11:26:39.829Z\t0d6d7d61-8158-45b4-b2b9-ef0493788dcf\tINFO\tToken usage: 2225 input, 63 output\n",
+            "ingestionTime": 1770118007260,
+            "eventId": "39474950485519202147240127362883045417123526502307856393"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ec0ba5f58276430ab5e320e0f8c56bf0",
+            "timestamp": 1770117999830,
+            "message": "2026-02-03T11:26:39.830Z\t0d6d7d61-8158-45b4-b2b9-ef0493788dcf\tINFO\t[Token Tracking] Saving tokens for structure-validator: input=2225, output=63, model=anthropic.claude-3-haiku-20240307-v1:0\n",
+            "ingestionTime": 1770118007260,
+            "eventId": "39474950485541502892438657986024581135396174863813836810"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]ec0ba5f58276430ab5e320e0f8c56bf0",
+            "timestamp": 1770117999835,
+            "message": "2026-02-03T11:26:39.835Z\t0d6d7d61-8158-45b4-b2b9-ef0493788dcf\tERROR\t[Token Tracking] Error saving tokens for structure-validator: relation \"token_usage\" does not exist\n",
+            "ingestionTime": 1770118007260,
+            "eventId": "39474950485653006618431311101732259726759416671343738891"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]5311e78e3153464b8ec75d0ba236ec13",
+            "timestamp": 1770119608144,
+            "message": "2026-02-03T11:53:28.144Z\t581f3849-e5d9-4d80-844f-c40a15b3cbaa\tINFO\tToken usage: 2203 input, 64 output\n",
+            "ingestionTime": 1770119611808,
+            "eventId": "39474986352142216122019287181680869235027215114505289750"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]5311e78e3153464b8ec75d0ba236ec13",
+            "timestamp": 1770119608144,
+            "message": "2026-02-03T11:53:28.144Z\t581f3849-e5d9-4d80-844f-c40a15b3cbaa\tINFO\t[Token Tracking] Saving tokens for structure-validator: input=2203, output=64, model=anthropic.claude-3-haiku-20240307-v1:0\n",
+            "ingestionTime": 1770119611808,
+            "eventId": "39474986352142216122019287181680869235027215114505289751"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]5311e78e3153464b8ec75d0ba236ec13",
+            "timestamp": 1770119608279,
+            "message": "2026-02-03T11:53:28.279Z\t581f3849-e5d9-4d80-844f-c40a15b3cbaa\tINFO\t[Token Tracking] Saved successfully: 2267 total tokens\n",
+            "ingestionTime": 1770119611808,
+            "eventId": "39474986355152816723820921305788191201834743917812645912"
+        }
+    ],
+    "searchedLogStreams": []
+}

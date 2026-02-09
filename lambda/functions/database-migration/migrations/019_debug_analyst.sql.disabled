@@ -1,0 +1,47 @@
+-- Temporary debug query for analyst bains@futurisms.ai
+-- This will be removed after debugging
+
+DO $$
+DECLARE
+  v_user_id UUID;
+  v_user_role VARCHAR;
+  v_email VARCHAR;
+BEGIN
+  -- Get user details
+  SELECT user_id, email, user_role INTO v_user_id, v_email, v_user_role
+  FROM users
+  WHERE email = 'bains@futurisms.ai';
+
+  IF v_user_id IS NULL THEN
+    RAISE NOTICE 'ERROR: User not found with email bains@futurisms.ai';
+  ELSE
+    RAISE NOTICE '===== USER FOUND =====';
+    RAISE NOTICE 'User ID: %', v_user_id;
+    RAISE NOTICE 'Email: %', v_email;
+    RAISE NOTICE 'Role: %', v_user_role;
+  END IF;
+
+  -- Check session_participants entries
+  RAISE NOTICE '===== SESSION_PARTICIPANTS ENTRIES =====';
+  FOR r IN SELECT sp.participant_id, sp.session_id, sp.role, sp.status, sp.invited_by,
+                   rs.name as session_name, rs.is_active
+           FROM session_participants sp
+           JOIN review_sessions rs ON sp.session_id = rs.session_id
+           WHERE sp.user_id = v_user_id
+  LOOP
+    RAISE NOTICE 'Session: % (ID: %)', r.session_name, r.session_id;
+    RAISE NOTICE '  Role: %, Status: %, Session Active: %', r.role, r.status, r.is_active;
+  END LOOP;
+
+  -- Check invitation
+  RAISE NOTICE '===== INVITATION =====';
+  FOR r IN SELECT invitation_id, session_id, accepted_at, accepted_by
+           FROM user_invitations
+           WHERE email = 'bains@futurisms.ai'
+  LOOP
+    RAISE NOTICE 'Invitation ID: %', r.invitation_id;
+    RAISE NOTICE 'Session ID: %', r.session_id;
+    RAISE NOTICE 'Accepted At: %', r.accepted_at;
+    RAISE NOTICE 'Accepted By: %', r.accepted_by;
+  END LOOP;
+END $$;

@@ -1,0 +1,39 @@
+-- Migration 022: Fix Cognito user_id mismatch (correct order to avoid FK violations)
+-- Problem: PostgreSQL user has different user_id than Cognito user
+-- Cognito user_id (sub): 928514c4-f0b1-70db-85cf-8d2cd438f0eb
+-- Email: bains@futurisms.ai
+
+-- Step 1: Store the old user_id for reference
+DO $$
+DECLARE
+  old_user_id UUID;
+  new_user_id UUID := '928514c4-f0b1-70db-85cf-8d2cd438f0eb';
+BEGIN
+  -- Get the current user_id
+  SELECT user_id INTO old_user_id
+  FROM users
+  WHERE email = 'bains@futurisms.ai';
+
+  IF old_user_id IS NOT NULL AND old_user_id != new_user_id THEN
+    RAISE NOTICE 'Updating user_id from % to %', old_user_id, new_user_id;
+
+    -- Step 2: Update session_participants first (child table)
+    UPDATE session_participants
+    SET user_id = new_user_id
+    WHERE user_id = old_user_id;
+
+    -- Step 3: Update user_invitations accepted_by (child table)
+    UPDATE user_invitations
+    SET accepted_by = new_user_id
+    WHERE accepted_by = old_user_id;
+
+    -- Step 4: Now safe to update users table (parent table)
+    UPDATE users
+    SET user_id = new_user_id
+    WHERE user_id = old_user_id;
+
+    RAISE NOTICE 'User_id updated successfully';
+  ELSE
+    RAISE NOTICE 'User already has correct user_id or does not exist';
+  END IF;
+END $$;

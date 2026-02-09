@@ -10,6 +10,7 @@
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
 const { isAdmin } = require('/opt/nodejs/permissions');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 const crypto = require('crypto');
 const {
   CognitoIdentityProviderClient,
@@ -39,23 +40,24 @@ exports.handler = async (event) => {
 
     // Route: POST /sessions/{sessionId}/invitations
     if (httpMethod === 'POST' && path.includes('/sessions/') && path.endsWith('/invitations')) {
-      return await handleCreateInvitation(dbClient, pathParameters, requestBody, userId);
+      return await handleCreateInvitation(dbClient, pathParameters, requestBody, userId, event);
     }
 
     // Route: GET /invitations/{token}
     if (httpMethod === 'GET' && path.includes('/invitations/')) {
       const token = pathParameters?.token || pathParameters?.id;
-      return await handleGetInvitation(dbClient, token);
+      return await handleGetInvitation(dbClient, token, event);
     }
 
     // Route: POST /invitations/{token}/accept
     if (httpMethod === 'POST' && path.includes('/invitations/') && path.endsWith('/accept')) {
       const token = pathParameters?.token || pathParameters?.id;
-      return await handleAcceptInvitation(dbClient, token, requestBody);
+      return await handleAcceptInvitation(dbClient, token, requestBody, event);
     }
 
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Route not found' })
     };
 
@@ -63,6 +65,7 @@ exports.handler = async (event) => {
     console.error('Handler error:', error);
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: error.message })
     };
   } finally {
@@ -75,11 +78,11 @@ exports.handler = async (event) => {
  * Create invitation for analyst to join session
  * Admin only
  */
-async function handleCreateInvitation(dbClient, pathParameters, requestBody, userId) {
+async function handleCreateInvitation(dbClient, pathParameters, requestBody, userId, event) {
   const sessionId = pathParameters?.sessionId || pathParameters?.id;
 
   if (!sessionId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Session ID required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Session ID required' }) };
   }
 
   // Check permissions - only admins can create invitations
@@ -87,12 +90,13 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
   const user = userQuery.rows[0];
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
   }
 
   if (!isAdmin(user)) {
     return {
       statusCode: 403,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Forbidden: Only admins can invite analysts' })
     };
   }
@@ -103,6 +107,7 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
   if (!email || !email.includes('@')) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Valid email address required' })
     };
   }
@@ -116,6 +121,7 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
   if (sessionQuery.rows.length === 0) {
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Session not found' })
     };
   }
@@ -139,8 +145,9 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
 
     if (accessCheck.rows.length > 0) {
       return {
-        statusCode: 200,
-        body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
           message: 'User already has access to this session',
           user: {
             user_id: existingUserId,
@@ -161,6 +168,7 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
 
     return {
       statusCode: 200,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         message: 'Access granted to existing user',
         user: {
@@ -227,8 +235,9 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
   // Email should include: inviteLink, session name, expiry date
 
   return {
-    statusCode: 201,
-    body: JSON.stringify({
+      statusCode: 201,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       message: 'Invitation created successfully',
       invitationId,
       inviteLink, // Include for testing (remove in production or protect endpoint)
@@ -243,9 +252,9 @@ async function handleCreateInvitation(dbClient, pathParameters, requestBody, use
  * Get invitation details for signup page
  * Public endpoint (no auth required)
  */
-async function handleGetInvitation(dbClient, token) {
+async function handleGetInvitation(dbClient, token, event) {
   if (!token) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invitation token required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invitation token required' }) };
   }
 
   const query = `
@@ -267,6 +276,7 @@ async function handleGetInvitation(dbClient, token) {
   if (result.rows.length === 0) {
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Invitation not found' })
     };
   }
@@ -277,6 +287,7 @@ async function handleGetInvitation(dbClient, token) {
   if (new Date(invitation.expires_at) < new Date()) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         error: 'Invitation expired',
         expired: true
@@ -288,6 +299,7 @@ async function handleGetInvitation(dbClient, token) {
   if (invitation.accepted_at) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         error: 'Invitation already accepted',
         accepted: true
@@ -306,8 +318,9 @@ async function handleGetInvitation(dbClient, token) {
     : 'Administrator';
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       invitation: {
         email: invitation.email,
         session_id: invitation.session_id,
@@ -325,9 +338,9 @@ async function handleGetInvitation(dbClient, token) {
  * Accept invitation and create analyst account
  * Public endpoint (no auth required)
  */
-async function handleAcceptInvitation(dbClient, token, requestBody) {
+async function handleAcceptInvitation(dbClient, token, requestBody, event) {
   if (!token) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invitation token required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invitation token required' }) };
   }
 
   const { firstName, lastName, password } = JSON.parse(requestBody);
@@ -335,6 +348,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (!firstName || !lastName || !password) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'First name, last name, and password required' })
     };
   }
@@ -343,6 +357,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (password.length < 8) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Password must be at least 8 characters' })
     };
   }
@@ -365,6 +380,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (inviteResult.rows.length === 0) {
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Invitation not found' })
     };
   }
@@ -375,6 +391,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (new Date(invitation.expires_at) < new Date()) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Invitation expired' })
     };
   }
@@ -383,6 +400,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (invitation.accepted_at) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Invitation already accepted' })
     };
   }
@@ -396,6 +414,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (existingUserCheck.rows.length > 0) {
     return {
       statusCode: 400,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         error: 'User with this email already exists',
         message: 'Please login instead'
@@ -414,6 +433,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   if (!organizationId) {
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Failed to determine organization' })
     };
   }
@@ -428,6 +448,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
     console.error('USER_POOL_ID environment variable not set');
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Authentication service configuration error' })
     };
   }
@@ -480,8 +501,9 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
     // Handle specific Cognito errors
     if (error.name === 'UsernameExistsException') {
       return {
-        statusCode: 400,
-        body: JSON.stringify({
+      statusCode: 400,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
           error: 'User already exists in authentication system',
           message: 'Please login instead or contact support'
         })
@@ -490,6 +512,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
 
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({
         error: 'Failed to create user account',
         message: error.message
@@ -542,8 +565,9 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
   });
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       message: 'Account created successfully',
       user: {
         userId: newUser.user_id,
@@ -555,3 +579,4 @@ async function handleAcceptInvitation(dbClient, token, requestBody) {
     })
   };
 }
+

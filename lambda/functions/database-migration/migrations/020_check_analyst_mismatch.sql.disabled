@@ -1,0 +1,41 @@
+-- Check analyst user mismatch between Cognito and PostgreSQL
+-- Cognito user_id: 928514c4-f0b1-70db-85cf-8d2cd438f0eb
+-- Email: bains@futurisms.ai
+
+-- Check what user_id exists for this email in PostgreSQL
+SELECT
+  'PostgreSQL user by email' as check_type,
+  user_id,
+  email,
+  username,
+  first_name,
+  last_name,
+  user_role,
+  created_at
+FROM users
+WHERE email = 'bains@futurisms.ai';
+
+-- Check invitation
+SELECT
+  'Invitation' as check_type,
+  invitation_id,
+  email,
+  session_id,
+  accepted_at,
+  accepted_by as postgresql_user_id
+FROM user_invitations
+WHERE email = 'bains@futurisms.ai';
+
+-- Check if session_participants exists with the PostgreSQL user_id
+SELECT
+  'Session participants by email' as check_type,
+  sp.participant_id,
+  sp.user_id as postgresql_user_id,
+  sp.session_id,
+  sp.role,
+  sp.status,
+  rs.name as session_name
+FROM session_participants sp
+JOIN users u ON sp.user_id = u.user_id
+JOIN review_sessions rs ON sp.session_id = rs.session_id
+WHERE u.email = 'bains@futurisms.ai';

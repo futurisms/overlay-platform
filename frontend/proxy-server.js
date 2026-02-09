@@ -12,7 +12,11 @@ const COGNITO_BASE_URL = 'https://cognito-idp.eu-west-1.amazonaws.com/';
 const PORT = 3001;
 
 const server = http.createServer((req, res) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log(`\n>>> ${req.method} ${req.url}`);
+  if (req.method === 'DELETE') {
+    console.log('>>> DELETE REQUEST DETECTED <<<');
+    console.log('>>> Headers:', JSON.stringify(req.headers, null, 2));
+  }
 
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
@@ -75,6 +79,10 @@ const server = http.createServer((req, res) => {
     };
 
     const proxyReq = https.request(options, (proxyRes) => {
+      if (req.method === 'DELETE') {
+        console.log('>>> DELETE Response Status:', proxyRes.statusCode);
+      }
+
       // Forward status code
       res.writeHead(proxyRes.statusCode, proxyRes.headers);
 

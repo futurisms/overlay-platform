@@ -26,9 +26,35 @@ function LoginForm() {
       const result = await login(email, password);
 
       if (result.success && result.token) {
+        console.log('🔍 LOGIN DEBUG: Login successful, token received');
+        console.log('🔍 LOGIN DEBUG: result.userInfo =', result.userInfo);
+
         // Save token to both localStorage and cookies
         apiClient.setToken(result.token);
-        if (result.userInfo) {
+
+        // Fetch user info from database to get role
+        console.log('🔍 LOGIN DEBUG: Calling getCurrentUserInfo()...');
+        const userInfoResult = await apiClient.getCurrentUserInfo();
+        console.log('🔍 LOGIN DEBUG: getCurrentUserInfo() result =', userInfoResult);
+
+        if (userInfoResult.data?.user) {
+          console.log('🔍 LOGIN DEBUG: User data from database:', userInfoResult.data.user);
+
+          // Save complete user info including role from database
+          const completeUserInfo = {
+            ...result.userInfo,
+            role: userInfoResult.data.user.role,
+            name: userInfoResult.data.user.name,
+            user_id: userInfoResult.data.user.user_id,
+          };
+
+          console.log('🔍 LOGIN DEBUG: Complete user info to be saved:', completeUserInfo);
+          saveUserInfo(completeUserInfo);
+          console.log('🔍 LOGIN DEBUG: User info saved to localStorage');
+        } else if (result.userInfo) {
+          console.log('⚠️ LOGIN DEBUG: Database fetch failed or returned no user, falling back to Cognito info');
+          console.log('⚠️ LOGIN DEBUG: userInfoResult =', userInfoResult);
+          // Fallback to Cognito user info if database fetch fails
           saveUserInfo(result.userInfo);
         }
 

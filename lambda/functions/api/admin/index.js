@@ -8,6 +8,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 const { isAdmin } = require('/opt/nodejs/permissions');
 
 // Claude Sonnet 4.5 pricing (per 1K tokens)
@@ -35,15 +36,17 @@ exports.handler = async (event) => {
 
     if (userQuery.rows.length === 0) {
       return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'User not found' }),
+      statusCode: 404,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({ error: 'User not found' }),
       };
     }
 
     if (!isAdmin(userQuery.rows[0])) {
       return {
-        statusCode: 403,
-        body: JSON.stringify({ error: 'Admin access required' }),
+      statusCode: 403,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({ error: 'Admin access required' }),
       };
     }
 
@@ -58,12 +61,14 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 404,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: 'Endpoint not found' }),
     };
   } catch (error) {
     console.error('Admin Handler error:', error);
     return {
       statusCode: 500,
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: error.message }),
     };
   } finally {
@@ -226,8 +231,9 @@ async function handleGetSubmissions(dbClient, queryParams) {
   };
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       submissions: submissionsResult.rows,
       total: total,
       limit: limit,
@@ -385,8 +391,9 @@ async function handleGetAnalytics(dbClient, queryParams) {
   const agentBreakdownResult = await dbClient.query(agentBreakdownQuery);
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
       summary: {
         total_submissions: parseInt(summary.total_submissions || '0'),
         total_cost_usd: parseFloat(summary.total_cost_usd || '0').toFixed(2),

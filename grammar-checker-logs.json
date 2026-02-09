@@ -1,0 +1,47 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/02/03/[$LATEST]23b44ae64e5e407b8d6e4d2297c7364a",
+            "timestamp": 1770118057605,
+            "message": "2026-02-03T11:27:37.605Z\t9aac54d1-0dbe-4b42-b9c2-974062d628ff\tINFO\tToken usage: 2876 input, 373 output\n",
+            "ingestionTime": 1770118066621,
+            "eventId": "39474951773967056737545410060013715910676864186620444673"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]23b44ae64e5e407b8d6e4d2297c7364a",
+            "timestamp": 1770118057605,
+            "message": "2026-02-03T11:27:37.605Z\t9aac54d1-0dbe-4b42-b9c2-974062d628ff\tINFO\t[Token Tracking] Saving tokens for grammar-checker: input=2876, output=373, model=anthropic.claude-3-haiku-20240307-v1:0\n",
+            "ingestionTime": 1770118066621,
+            "eventId": "39474951773967056737545410060013715910676864186620444674"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]23b44ae64e5e407b8d6e4d2297c7364a",
+            "timestamp": 1770118057609,
+            "message": "2026-02-03T11:27:37.609Z\t9aac54d1-0dbe-4b42-b9c2-974062d628ff\tERROR\t[Token Tracking] Error saving tokens for grammar-checker: relation \"token_usage\" does not exist\n",
+            "ingestionTime": 1770118066621,
+            "eventId": "39474951774056259718339532552579858783767457632644366339"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]26046ecdfd874b55a8018427691a1cbb",
+            "timestamp": 1770119673005,
+            "message": "2026-02-03T11:54:33.005Z\t3e664b88-64bf-48be-b6d6-72e5203b21f1\tINFO\tToken usage: 2860 input, 367 output\n",
+            "ingestionTime": 1770119682023,
+            "eventId": "39474987798590850443914034849713955695940435748509974529"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]26046ecdfd874b55a8018427691a1cbb",
+            "timestamp": 1770119673005,
+            "message": "2026-02-03T11:54:33.005Z\t3e664b88-64bf-48be-b6d6-72e5203b21f1\tINFO\t[Token Tracking] Saving tokens for grammar-checker: input=2860, output=367, model=anthropic.claude-3-haiku-20240307-v1:0\n",
+            "ingestionTime": 1770119682023,
+            "eventId": "39474987798590850443914034849713955695940435748509974530"
+        },
+        {
+            "logStreamName": "2026/02/03/[$LATEST]26046ecdfd874b55a8018427691a1cbb",
+            "timestamp": 1770119673011,
+            "message": "2026-02-03T11:54:33.011Z\t3e664b88-64bf-48be-b6d6-72e5203b21f1\tINFO\t[Token Tracking] Saved successfully: 3227 total tokens\n",
+            "ingestionTime": 1770119682023,
+            "eventId": "39474987798724654915105218588563170005576325917545857027"
+        }
+    ],
+    "searchedLogStreams": []
+}

@@ -1,0 +1,1 @@
+{"statusCode":200,"body":"{\"success\":true,\"message\":\"Query executed successfully\",\"rowCount\":1,\"rows\":[{\"indexname\":\"idx_review_sessions_project_name\",\"indexdef\":\"CREATE INDEX idx_review_sessions_project_name ON public.review_sessions USING btree (project_name) WHERE (project_name IS NOT NULL)\"}]}"}

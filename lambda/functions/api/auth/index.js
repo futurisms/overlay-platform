@@ -10,17 +10,16 @@ const {
   AdminSetUserPasswordCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 
+const { getCorsHeaders } = require('/opt/nodejs/cors');
+
 const cognito = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION });
 const USER_POOL_ID = process.env.USER_POOL_ID;
 
 exports.handler = async (event) => {
   console.log('Auth API called:', JSON.stringify(event));
 
-  const { httpMethod, body, headers } = event;
+  const { httpMethod, body } = event;
   const data = body ? JSON.parse(body) : {};
-
-  // Get origin from request headers
-  const origin = headers?.origin || headers?.Origin || '*';
 
   try {
     switch (httpMethod) {
@@ -30,19 +29,14 @@ exports.handler = async (event) => {
         return {
           ...result,
           headers: {
-            'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Credentials': 'true',
-            'Content-Type': 'application/json',
+            ...getCorsHeaders(event),
             ...result.headers,
           },
         };
       default:
         return {
           statusCode: 405,
-          headers: {
-            'Access-Control-Allow-Origin': origin,
-            'Content-Type': 'application/json',
-          },
+          headers: getCorsHeaders(event),
           body: JSON.stringify({ error: 'Method not allowed' }),
         };
     }
@@ -50,10 +44,7 @@ exports.handler = async (event) => {
     console.error('Auth error:', error);
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Content-Type': 'application/json',
-      },
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: error.message }),
     };
   }
