@@ -16,16 +16,33 @@ const USER_POOL_ID = process.env.USER_POOL_ID;
 exports.handler = async (event) => {
   console.log('Auth API called:', JSON.stringify(event));
 
-  const { httpMethod, body } = event;
+  const { httpMethod, body, headers } = event;
   const data = body ? JSON.parse(body) : {};
+
+  // Get origin from request headers
+  const origin = headers?.origin || headers?.Origin || '*';
 
   try {
     switch (httpMethod) {
       case 'POST':
-        return await handleAuth(data);
+        const result = await handleAuth(data);
+        // Add CORS headers to response
+        return {
+          ...result,
+          headers: {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true',
+            'Content-Type': 'application/json',
+            ...result.headers,
+          },
+        };
       default:
         return {
           statusCode: 405,
+          headers: {
+            'Access-Control-Allow-Origin': origin,
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({ error: 'Method not allowed' }),
         };
     }
@@ -33,6 +50,10 @@ exports.handler = async (event) => {
     console.error('Auth error:', error);
     return {
       statusCode: 500,
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ error: error.message }),
     };
   }
