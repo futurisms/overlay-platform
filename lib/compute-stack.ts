@@ -476,7 +476,10 @@ export class ComputeStack extends cdk.Stack {
         tracingEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS, // Update in production
+        allowOrigins: [
+          'http://localhost:3000', // Local development
+          'https://*.vercel.app',   // Vercel preview/production deployments
+        ],
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: [
           'Content-Type',
