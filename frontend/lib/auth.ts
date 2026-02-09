@@ -24,20 +24,17 @@ export async function login(email: string, password: string): Promise<LoginResul
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
     const url = `${API_BASE_URL}/auth`;
 
+    // Backend API expects simple JSON format
     const payload = {
-      AuthFlow: 'USER_PASSWORD_AUTH',
-      ClientId: CLIENT_ID,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-      },
+      action: 'login',
+      email,
+      password,
     };
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-amz-json-1.1',
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
@@ -46,20 +43,20 @@ export async function login(email: string, password: string): Promise<LoginResul
       const error = await response.json();
       return {
         success: false,
-        error: error.message || error.__type || 'Authentication failed',
+        error: error.error || error.message || 'Authentication failed',
       };
     }
 
     const data = await response.json();
 
-    if (!data.AuthenticationResult?.IdToken) {
+    if (!data.idToken) {
       return {
         success: false,
         error: 'No token received from authentication',
       };
     }
 
-    const idToken = data.AuthenticationResult.IdToken;
+    const idToken = data.idToken;
 
     // Decode JWT to get user info (simple base64 decode, no verification needed for display)
     const payload_parts = idToken.split('.')[1];
