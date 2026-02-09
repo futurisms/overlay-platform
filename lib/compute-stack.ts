@@ -478,7 +478,8 @@ export class ComputeStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: [
           'http://localhost:3000', // Local development
-          'https://overlay-platform-git-master-satnams-projects-7193fd93.vercel.app', // Vercel production
+          'https://overlay-platform.vercel.app', // Vercel production
+          'https://overlay-platform-git-master-satnams-projects-7193fd93.vercel.app', // Vercel git branch
         ],
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: [
