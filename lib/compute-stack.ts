@@ -572,6 +572,14 @@ export class ComputeStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /sessions/{sessionId}/participants/{userId}
+    const sessionParticipantsResource = sessionIdResource.addResource('participants');
+    const participantUserIdResource = sessionParticipantsResource.addResource('{userId}');
+    participantUserIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(sessionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     const submissionsResource = this.api.root.addResource('submissions');
     submissionsResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
       authorizer,

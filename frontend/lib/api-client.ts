@@ -112,6 +112,7 @@ class ApiClient {
     start_date: string;
     end_date: string;
     status?: string;
+    project_name?: string;
   }) {
     return this.request<any>('/sessions', {
       method: 'POST',
@@ -125,10 +126,17 @@ class ApiClient {
     });
   }
 
+  async revokeSessionAccess(sessionId: string, userId: string) {
+    return this.request<{ success: boolean; message: string }>(`/sessions/${sessionId}/participants/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async updateSession(sessionId: string, data: {
     name?: string;
     description?: string;
     status?: string;
+    project_name?: string;
   }) {
     return this.request<any>(`/sessions/${sessionId}`, {
       method: 'PUT',

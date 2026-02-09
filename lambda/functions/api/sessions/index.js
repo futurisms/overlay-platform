@@ -4,7 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
-const { canEdit, hasSessionAccess, getAccessibleSessions } = require('/opt/nodejs/permissions');
+const { canEdit, hasSessionAccess, getAccessibleSessions, revokeSessionAccess } = require('/opt/nodejs/permissions');
 
 exports.handler = async (event) => {
   console.log('Sessions Handler:', JSON.stringify(event));
@@ -29,6 +29,9 @@ exports.handler = async (event) => {
     }
     if (path.includes('/export')) {
       return await handleExportSession(dbClient, pathParameters, userId);
+    }
+    if (path.includes('/participants/') && httpMethod === 'DELETE') {
+      return await handleRemoveParticipant(dbClient, path, userId);
     }
 
     switch (httpMethod) {
@@ -64,7 +67,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     // Get specific session with participants
     const sessionQuery = `
       SELECT s.session_id, s.overlay_id, s.name, s.description, s.status,
-             s.created_by, s.created_at, s.updated_at,
+             s.project_name, s.created_by, s.created_at, s.updated_at,
              o.name as overlay_name
       FROM review_sessions s
       LEFT JOIN overlays o ON s.overlay_id = o.overlay_id
@@ -80,13 +83,14 @@ async function handleGet(dbClient, pathParameters, userId) {
     const userQuery = await dbClient.query('SELECT user_role FROM users WHERE user_id = $1', [userId]);
     const userRole = userQuery.rows[0]?.user_role;
 
-    // Get participants
+    // Get participants (only active ones)
     const participantsQuery = `
       SELECT sp.user_id, sp.role, sp.joined_at,
              u.first_name, u.last_name, u.email
       FROM session_participants sp
       LEFT JOIN users u ON sp.user_id = u.user_id
       WHERE sp.session_id = $1
+        AND sp.status = 'active'
     `;
     const participantsResult = await dbClient.query(participantsQuery, [sessionId]);
 
@@ -144,7 +148,7 @@ async function handleGet(dbClient, pathParameters, userId) {
     for (const session of sessions) {
       const countsQuery = `
         SELECT
-          (SELECT COUNT(*) FROM session_participants WHERE session_id = $1) as participant_count,
+          (SELECT COUNT(*) FROM session_participants WHERE session_id = $1 AND status = 'active') as participant_count,
           (SELECT COUNT(*) FROM document_submissions WHERE session_id = $1) as submission_count
       `;
       const countsResult = await dbClient.query(countsQuery, [session.session_id]);
@@ -224,7 +228,7 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId) {
 }
 
 async function handleCreate(dbClient, requestBody, userId) {
-  const { overlay_id, name, description } = JSON.parse(requestBody);
+  const { overlay_id, name, description, project_name } = JSON.parse(requestBody);
 
   if (!overlay_id || !name) {
     return { statusCode: 400, body: JSON.stringify({ error: 'overlay_id and name required' }) };
@@ -251,11 +255,11 @@ async function handleCreate(dbClient, requestBody, userId) {
 
   // Create session
   const sessionQuery = `
-    INSERT INTO review_sessions (organization_id, overlay_id, name, description, status, created_by)
-    VALUES ($1, $2, $3, $4, 'active', $5)
-    RETURNING session_id, organization_id, overlay_id, name, description, status, created_at
+    INSERT INTO review_sessions (organization_id, overlay_id, name, description, project_name, status, created_by)
+    VALUES ($1, $2, $3, $4, $5, 'active', $6)
+    RETURNING session_id, organization_id, overlay_id, name, description, project_name, status, created_at
   `;
-  const sessionResult = await dbClient.query(sessionQuery, [orgId, overlay_id, name, description || null, userId]);
+  const sessionResult = await dbClient.query(sessionQuery, [orgId, overlay_id, name, description || null, project_name || null, userId]);
   const session = sessionResult.rows[0];
 
   // Add creator as owner
@@ -286,18 +290,19 @@ async function handleUpdate(dbClient, pathParameters, requestBody, userId) {
     return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only admins can update sessions' }) };
   }
 
-  const { name, description, status } = JSON.parse(requestBody);
+  const { name, description, status, project_name } = JSON.parse(requestBody);
 
   const query = `
     UPDATE review_sessions
     SET name = COALESCE($2, name),
         description = COALESCE($3, description),
         status = COALESCE($4, status),
+        project_name = COALESCE($5, project_name),
         updated_at = CURRENT_TIMESTAMP
     WHERE session_id = $1
-    RETURNING session_id, name, description, status, updated_at
+    RETURNING session_id, name, description, status, project_name, updated_at
   `;
-  const result = await dbClient.query(query, [sessionId, name || null, description || null, status || null]);
+  const result = await dbClient.query(query, [sessionId, name || null, description || null, status || null, project_name || null]);
 
   if (result.rows.length === 0) {
     return { statusCode: 404, body: JSON.stringify({ error: 'Session not found' }) };
@@ -547,5 +552,49 @@ async function handleExportSession(dbClient, pathParameters, userId) {
       'Content-Disposition': `attachment; filename="session-${sessionId}-export.csv"`
     },
     body: csv
+  };
+}
+
+async function handleRemoveParticipant(dbClient, path, userId) {
+  // Parse path: /production/sessions/{sessionId}/participants/{userIdToRemove}
+  // or: /sessions/{sessionId}/participants/{userIdToRemove}
+  const pathParts = path.split('/').filter(Boolean);
+
+  // Find the index of 'participants' in the path
+  const participantsIndex = pathParts.findIndex(part => part === 'participants');
+
+  if (participantsIndex === -1 || participantsIndex < 2 || participantsIndex + 1 >= pathParts.length) {
+    console.log('Invalid path format:', { path, pathParts, participantsIndex });
+    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid path format' }) };
+  }
+
+  // sessionId is the part before 'participants'
+  const sessionId = pathParts[participantsIndex - 1];
+  // userId is the part after 'participants'
+  const userIdToRemove = pathParts[participantsIndex + 1];
+
+  // Check if current user is admin
+  const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+  }
+
+  if (user.user_role !== 'admin') {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
+  }
+
+  // Revoke access using existing permission helper
+  await revokeSessionAccess(dbClient, user, userIdToRemove, sessionId);
+
+  console.log(`Participant ${userIdToRemove} removed from session ${sessionId} by admin ${userId}`);
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      success: true,
+      message: 'Participant access revoked'
+    })
   };
 }

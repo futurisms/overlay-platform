@@ -32,6 +32,7 @@ interface Session {
   participant_count: number;
   submission_count: number;
   overlay_id: string;
+  project_name?: string;
 }
 
 export default function DashboardPage() {
@@ -46,7 +47,7 @@ export default function DashboardPage() {
   const [showQuickUploadDialog, setShowQuickUploadDialog] = useState(false);
   const [showEditSessionDialog, setShowEditSessionDialog] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [editSessionData, setEditSessionData] = useState({ name: "", description: "" });
+  const [editSessionData, setEditSessionData] = useState({ name: "", description: "", project_name: "" });
   const [isUpdating, setIsUpdating] = useState(false);
   const [newSessionData, setNewSessionData] = useState({
     name: "",
@@ -54,6 +55,7 @@ export default function DashboardPage() {
     overlay_id: "",
     start_date: "",
     end_date: "",
+    project_name: "",
   });
   const [overlays, setOverlays] = useState<any[]>([]);
   const [uploadData, setUploadData] = useState({
@@ -61,6 +63,10 @@ export default function DashboardPage() {
     document_name: "",
     document_content: "",
   });
+
+  // Project filtering state
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [projects, setProjects] = useState<string[]>([]);
 
   useEffect(() => {
     // Check authentication
@@ -81,6 +87,17 @@ export default function DashboardPage() {
       loadOverlays(); // Only admins need overlays for creating sessions
     }
   }, [router]);
+
+  // Extract unique projects from sessions
+  useEffect(() => {
+    const uniqueProjects = [...new Set(
+      sessions
+        .map(s => s.project_name)
+        .filter(p => p != null)
+    )] as string[];
+
+    setProjects(['All', 'Uncategorized', ...uniqueProjects.sort()]);
+  }, [sessions]);
 
   const loadSessions = async () => {
     setIsLoading(true);
@@ -155,6 +172,7 @@ export default function DashboardPage() {
     setEditSessionData({
       name: session.name,
       description: session.description || "",
+      project_name: session.project_name || "",
     });
     setShowEditSessionDialog(true);
   };
@@ -170,6 +188,7 @@ export default function DashboardPage() {
       const result = await apiClient.updateSession(editingSession.session_id, {
         name: editSessionData.name,
         description: editSessionData.description,
+        project_name: editSessionData.project_name || undefined,
       });
 
       if (result.error) {
@@ -201,6 +220,7 @@ export default function DashboardPage() {
         start_date: newSessionData.start_date || new Date().toISOString(),
         end_date: newSessionData.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         status: "active",
+        project_name: newSessionData.project_name || undefined,
       });
 
       if (result.error) {
@@ -213,6 +233,7 @@ export default function DashboardPage() {
           overlay_id: "",
           start_date: "",
           end_date: "",
+          project_name: "",
         });
         loadSessions();
       }
@@ -305,6 +326,13 @@ export default function DashboardPage() {
     );
   }
 
+  // Filter sessions by selected project
+  const filteredSessions = selectedProject === 'All' || !selectedProject
+    ? sessions
+    : selectedProject === 'Uncategorized'
+    ? sessions.filter(s => !s.project_name)
+    : sessions.filter(s => s.project_name === selectedProject);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto p-6 max-w-7xl">
@@ -355,17 +383,42 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {sessions.length === 0 ? (
+            {/* Project Filter */}
+            {projects.length > 0 && (
+              <div className="mb-4">
+                <Label htmlFor="project-filter" className="text-sm font-medium mb-2 block">
+                  Filter by Project
+                </Label>
+                <select
+                  id="project-filter"
+                  value={selectedProject || 'All'}
+                  onChange={(e) => setSelectedProject(e.target.value === 'All' ? null : e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {projects.map(project => (
+                    <option key={project} value={project}>
+                      {project} {project === 'All' ? `(${sessions.length})` : project === 'Uncategorized' ? `(${sessions.filter(s => !s.project_name).length})` : `(${sessions.filter(s => s.project_name === project).length})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {filteredSessions.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-600 dark:text-slate-400 mb-2">No analysis sessions available</p>
+                <p className="text-slate-600 dark:text-slate-400 mb-2">
+                  {selectedProject && selectedProject !== 'All'
+                    ? `No sessions found in "${selectedProject}"`
+                    : 'No analysis sessions available'}
+                </p>
                 <p className="text-sm text-slate-500 dark:text-slate-500">
                   Analysis sessions will appear here when they are created
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sessions.map((session) => (
+                {filteredSessions.map((session) => (
                   <Card
                     key={session.session_id}
                     className="cursor-pointer hover:border-blue-500 transition-colors"
@@ -380,6 +433,11 @@ export default function DashboardPage() {
                           </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
+                          {session.project_name && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {session.project_name}
+                            </Badge>
+                          )}
                           <Badge variant={getStatusColor(session.status)}>
                             {session.status}
                           </Badge>
@@ -545,6 +603,20 @@ export default function DashboardPage() {
               </div>
 
               <div>
+                <Label htmlFor="project-name">Project (Optional)</Label>
+                <Input
+                  id="project-name"
+                  placeholder="e.g., Q1 2026 Reviews"
+                  value={newSessionData.project_name}
+                  onChange={(e) => setNewSessionData({ ...newSessionData, project_name: e.target.value })}
+                  maxLength={100}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Group sessions together under a project name for better organization
+                </p>
+              </div>
+
+              <div>
                 <Label htmlFor="overlay-select">Evaluation Overlay *</Label>
                 <select
                   id="overlay-select"
@@ -628,6 +700,20 @@ export default function DashboardPage() {
                   value={editSessionData.description}
                   onChange={(e) => setEditSessionData({ ...editSessionData, description: e.target.value })}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-project-name">Project (Optional)</Label>
+                <Input
+                  id="edit-project-name"
+                  placeholder="e.g., Q1 2026 Reviews"
+                  value={editSessionData.project_name}
+                  onChange={(e) => setEditSessionData({ ...editSessionData, project_name: e.target.value })}
+                  maxLength={100}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Group sessions together under a project name for better organization
+                </p>
               </div>
             </div>
 
