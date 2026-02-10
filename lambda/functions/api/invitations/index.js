@@ -17,6 +17,8 @@ const {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   AdminAddUserToGroupCommand,
+  AdminGetUserCommand,
+  AdminDeleteUserCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 /**
@@ -443,6 +445,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     region: process.env.AWS_REGION || 'eu-west-1'
   });
   const userPoolId = process.env.USER_POOL_ID;
+  let cognitoUserId = null; // Declare in function scope so it's accessible in database operations
 
   if (!userPoolId) {
     console.error('USER_POOL_ID environment variable not set');
@@ -472,7 +475,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     });
 
     const createUserResponse = await cognitoClient.send(createUserCommand);
-    const cognitoUserId = createUserResponse.User.Username; // This is the Cognito sub (user_id)
+    cognitoUserId = createUserResponse.User.Username; // This is the Cognito sub (user_id)
     console.log('✅ Cognito user created with ID:', cognitoUserId);
 
     // Step 2: Set permanent password
@@ -497,7 +500,7 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     console.log('✅ User added to document_admin group');
 
   } catch (error) {
-    console.error('Failed to create Cognito user:', error);
+    console.error('Cognito user creation error:', error);
 
     // Handle specific Cognito errors
     if (error.name === 'InvalidPasswordException' || error.code === 'InvalidPasswordException') {
@@ -512,23 +515,62 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     }
 
     if (error.name === 'UsernameExistsException' || error.code === 'UsernameExistsException') {
+      // User exists in Cognito from a previous failed attempt - reuse them
+      console.log('Cognito user already exists, looking up existing user...');
+      try {
+        const getUserCommand = new AdminGetUserCommand({
+          UserPoolId: userPoolId,
+          Username: invitation.email,
+        });
+        const existingUser = await cognitoClient.send(getUserCommand);
+        cognitoUserId = existingUser.Username;
+        console.log('✅ Using existing Cognito user:', cognitoUserId);
+
+        // Update password to what user provided
+        const setPasswordCommand = new AdminSetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: invitation.email,
+          Password: password,
+          Permanent: true,
+        });
+        await cognitoClient.send(setPasswordCommand);
+        console.log('✅ Updated password for existing user');
+
+        // Ensure user is in document_admin group
+        const addToGroupCommand = new AdminAddUserToGroupCommand({
+          UserPoolId: userPoolId,
+          Username: invitation.email,
+          GroupName: 'document_admin',
+        });
+        await cognitoClient.send(addToGroupCommand);
+        console.log('✅ Added existing user to document_admin group');
+
+      } catch (lookupError) {
+        console.error('Failed to look up existing Cognito user:', lookupError);
+        return {
+          statusCode: 500,
+          headers: getCorsHeaders(event),
+          body: JSON.stringify({ error: 'Account creation failed. Please contact support.' })
+        };
+      }
+    } else {
       return {
-        statusCode: 409,
+        statusCode: 500,
         headers: getCorsHeaders(event),
         body: JSON.stringify({
-          error: 'An account with this email already exists',
-          message: 'Please login instead or contact support'
+          error: 'Failed to create user account',
+          message: error.message
         })
       };
     }
+  }
 
+  // Verify we have a valid cognitoUserId before proceeding
+  if (!cognitoUserId) {
     return {
       statusCode: 500,
       headers: getCorsHeaders(event),
-      body: JSON.stringify({
-        error: 'Failed to create user account',
-        message: error.message
-      })
+      body: JSON.stringify({ error: 'Failed to obtain user ID from authentication service' })
     };
   }
 
@@ -538,59 +580,98 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
   const placeholderPasswordHash = 'COGNITO_AUTH'; // Placeholder since auth is via Cognito
   const username = invitation.email; // Use email as username
 
-  const userResult = await dbClient.query(
-    `INSERT INTO users (
-      user_id,
-      email,
-      username,
-      password_hash,
-      first_name,
-      last_name,
-      user_role,
-      organization_id,
-      email_verified,
-      is_active
-    ) VALUES ($1, $2, $3, $4, $5, $6, 'analyst', $7, true, true)
-    RETURNING user_id, email, username, first_name, last_name, user_role`,
-    [cognitoUserId, invitation.email, username, placeholderPasswordHash, firstName, lastName, organizationId]
-  );
+  try {
+    // Database INSERT for users table with ON CONFLICT to handle orphaned entries
+    const userResult = await dbClient.query(
+      `INSERT INTO users (
+        user_id,
+        email,
+        username,
+        password_hash,
+        first_name,
+        last_name,
+        user_role,
+        organization_id,
+        email_verified,
+        is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'analyst', $7, true, true)
+      ON CONFLICT (email, organization_id) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        is_active = true
+      RETURNING user_id, email, username, first_name, last_name, user_role`,
+      [cognitoUserId, invitation.email, username, placeholderPasswordHash, firstName, lastName, organizationId]
+    );
 
-  const newUser = userResult.rows[0];
+    const newUser = userResult.rows[0];
+    console.log('✅ User record created/updated in database:', newUser.user_id);
 
-  // Grant session access
-  await dbClient.query(
-    `INSERT INTO session_participants (user_id, session_id, invited_by, role, status)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [newUser.user_id, invitation.session_id, invitation.invited_by, 'reviewer', 'active']
-  );
+    // Grant session access (with ON CONFLICT to handle duplicates)
+    await dbClient.query(
+      `INSERT INTO session_participants (user_id, session_id, invited_by, role, status)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, session_id) DO UPDATE SET
+         status = 'active',
+         role = EXCLUDED.role`,
+      [newUser.user_id, invitation.session_id, invitation.invited_by, 'reviewer', 'active']
+    );
+    console.log('✅ Session access granted');
 
-  // Mark invitation as accepted
-  await dbClient.query(
-    `UPDATE user_invitations
-     SET accepted_at = CURRENT_TIMESTAMP, accepted_by = $1
-     WHERE invitation_id = $2`,
-    [newUser.user_id, invitation.invitation_id]
-  );
+    // Mark invitation as accepted
+    await dbClient.query(
+      `UPDATE user_invitations
+       SET accepted_at = CURRENT_TIMESTAMP, accepted_by = $1
+       WHERE invitation_id = $2`,
+      [newUser.user_id, invitation.invitation_id]
+    );
+    console.log('✅ Invitation marked as accepted');
 
-  console.log('Invitation accepted:', {
-    userId: newUser.user_id,
-    email: newUser.email,
-    sessionId: invitation.session_id
-  });
+    console.log('Invitation accepted successfully:', {
+      userId: newUser.user_id,
+      email: newUser.email,
+      sessionId: invitation.session_id
+    });
 
-  return {
+    return {
       statusCode: 200,
       headers: getCorsHeaders(event),
       body: JSON.stringify({
-      message: 'Account created successfully',
-      user: {
-        userId: newUser.user_id,
-        email: newUser.email,
-        firstName: newUser.first_name,
-        lastName: newUser.last_name,
-        role: newUser.user_role
-      }
-    })
-  };
+        message: 'Account created successfully',
+        user: {
+          userId: newUser.user_id,
+          email: newUser.email,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          role: newUser.user_role
+        }
+      })
+    };
+
+  } catch (dbError) {
+    console.error('Database operation failed:', dbError);
+
+    // Rollback: Delete Cognito user if database operations fail
+    try {
+      const deleteCommand = new AdminDeleteUserCommand({
+        UserPoolId: userPoolId,
+        Username: invitation.email,
+      });
+      await cognitoClient.send(deleteCommand);
+      console.log('✅ Rolled back Cognito user after database failure');
+    } catch (rollbackError) {
+      console.error('Failed to rollback Cognito user:', rollbackError);
+      // Note: If rollback fails, the orphaned user will be reused on next signup attempt
+    }
+
+    return {
+      statusCode: 500,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
+        error: 'Account creation failed',
+        message: 'Please try again or contact support if the problem persists'
+      })
+    };
+  }
 }
 

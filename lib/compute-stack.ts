@@ -447,6 +447,8 @@ export class ComputeStack extends cdk.Stack {
         'cognito-idp:AdminCreateUser',
         'cognito-idp:AdminSetUserPassword',
         'cognito-idp:AdminAddUserToGroup',
+        'cognito-idp:AdminGetUser',        // For looking up existing users on signup retry
+        'cognito-idp:AdminDeleteUser',      // For rollback when database operations fail
       ],
       resources: [props.userPool.userPoolArn],
     }));
