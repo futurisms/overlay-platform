@@ -12,8 +12,8 @@ import { apiClient } from "@/lib/api-client";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("TestPassword123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,7 +102,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@example.com"
+                placeholder="you@example.com"
                 required
                 disabled={isLoading}
               />
@@ -138,12 +138,6 @@ function LoginForm() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2">Test Credentials:</p>
-            <p className="text-xs text-blue-800 dark:text-blue-200">Email: admin@example.com</p>
-            <p className="text-xs text-blue-800 dark:text-blue-200">Password: TestPassword123!</p>
-          </div>
         </CardContent>
       </Card>
     </div>
