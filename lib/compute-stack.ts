@@ -324,7 +324,7 @@ export class ComputeStack extends cdk.Stack {
       layers: [commonLayer],
       environment: {
         ...commonEnvironment,
-        FRONTEND_URL: 'http://localhost:3000', // TODO: Update for production
+        FRONTEND_URL: 'https://overlay-platform.vercel.app',
         USER_POOL_ID: props.userPool.userPoolId,
       },
       description: 'Handles analyst invitation system',
