@@ -609,6 +609,24 @@ export class ComputeStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /submissions/{submissionId}/content
+    const submissionContentResource = submissionIdResource.addResource('content');
+    submissionContentResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /submissions/{submissionId}/answers
+    const submissionAnswersResource = submissionIdResource.addResource('answers');
+    submissionAnswersResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    submissionAnswersResource.addMethod('POST', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // /submissions/{submissionId}/feedback
     const submissionFeedbackResource = submissionIdResource.addResource('feedback');
     submissionFeedbackResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
