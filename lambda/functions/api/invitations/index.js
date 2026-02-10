@@ -472,7 +472,8 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     });
 
     const createUserResponse = await cognitoClient.send(createUserCommand);
-    console.log('✅ Cognito user created');
+    const cognitoUserId = createUserResponse.User.Username; // This is the Cognito sub (user_id)
+    console.log('✅ Cognito user created with ID:', cognitoUserId);
 
     // Step 2: Set permanent password
     const setPasswordCommand = new AdminSetUserPasswordCommand({
@@ -521,12 +522,14 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
   }
 
   // Create user account in database (analyst role)
+  // CRITICAL: Use Cognito user_id (sub) as database user_id for auth to work
   // Note: password is managed by Cognito, storing placeholder hash
   const placeholderPasswordHash = 'COGNITO_AUTH'; // Placeholder since auth is via Cognito
   const username = invitation.email; // Use email as username
 
   const userResult = await dbClient.query(
     `INSERT INTO users (
+      user_id,
       email,
       username,
       password_hash,
@@ -536,9 +539,9 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
       organization_id,
       email_verified,
       is_active
-    ) VALUES ($1, $2, $3, $4, $5, 'analyst', $6, true, true)
+    ) VALUES ($1, $2, $3, $4, $5, $6, 'analyst', $7, true, true)
     RETURNING user_id, email, username, first_name, last_name, user_role`,
-    [invitation.email, username, placeholderPasswordHash, firstName, lastName, organizationId]
+    [cognitoUserId, invitation.email, username, placeholderPasswordHash, firstName, lastName, organizationId]
   );
 
   const newUser = userResult.rows[0];
