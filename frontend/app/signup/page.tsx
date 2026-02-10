@@ -66,8 +66,8 @@ function SignupForm() {
   };
 
   const validatePassword = (pwd: string): string | null => {
-    if (pwd.length < 8) {
-      return "Password must be at least 8 characters long";
+    if (pwd.length < 12) {
+      return "Password must be at least 12 characters long";
     }
     if (!/[A-Z]/.test(pwd)) {
       return "Password must contain at least one uppercase letter";
@@ -318,12 +318,12 @@ function SignupForm() {
               </p>
               <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
                 <li className="flex items-center gap-2">
-                  {password.length >= 8 ? (
+                  {password.length >= 12 ? (
                     <CheckCircle2 className="h-3 w-3 text-green-600" />
                   ) : (
                     <div className="h-3 w-3 rounded-full border border-slate-300" />
                   )}
-                  At least 8 characters
+                  At least 12 characters
                 </li>
                 <li className="flex items-center gap-2">
                   {/[A-Z]/.test(password) ? (

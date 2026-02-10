@@ -500,12 +500,23 @@ async function handleAcceptInvitation(dbClient, token, requestBody, event) {
     console.error('Failed to create Cognito user:', error);
 
     // Handle specific Cognito errors
-    if (error.name === 'UsernameExistsException') {
+    if (error.name === 'InvalidPasswordException' || error.code === 'InvalidPasswordException') {
       return {
-      statusCode: 400,
-      headers: getCorsHeaders(event),
-      body: JSON.stringify({
-          error: 'User already exists in authentication system',
+        statusCode: 400,
+        headers: getCorsHeaders(event),
+        body: JSON.stringify({
+          error: 'Password does not meet requirements',
+          details: 'Password must be at least 12 characters with uppercase, lowercase, number, and special character'
+        })
+      };
+    }
+
+    if (error.name === 'UsernameExistsException' || error.code === 'UsernameExistsException') {
+      return {
+        statusCode: 409,
+        headers: getCorsHeaders(event),
+        body: JSON.stringify({
+          error: 'An account with this email already exists',
           message: 'Please login instead or contact support'
         })
       };
