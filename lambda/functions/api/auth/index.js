@@ -24,15 +24,7 @@ exports.handler = async (event) => {
   try {
     switch (httpMethod) {
       case 'POST':
-        const result = await handleAuth(data);
-        // Add CORS headers to response
-        return {
-          ...result,
-          headers: {
-            ...getCorsHeaders(event),
-            ...result.headers,
-          },
-        };
+        return await handleAuth(data, event);
       default:
         return {
           statusCode: 405,
@@ -50,23 +42,24 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleAuth(data) {
+async function handleAuth(data, event) {
   const { action, email, password, username } = data;
 
   switch (action) {
     case 'login':
-      return await login(email, password);
+      return await login(email, password, event);
     case 'register':
-      return await register(email, password, username);
+      return await register(email, password, username, event);
     default:
       return {
         statusCode: 400,
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ error: 'Invalid action' }),
       };
   }
 }
 
-async function login(email, password) {
+async function login(email, password, event) {
   // TODO: Implement login with Cognito
   const command = new AdminInitiateAuthCommand({
     UserPoolId: USER_POOL_ID,
@@ -82,6 +75,7 @@ async function login(email, password) {
 
   return {
     statusCode: 200,
+    headers: getCorsHeaders(event),
     body: JSON.stringify({
       accessToken: response.AuthenticationResult?.AccessToken,
       idToken: response.AuthenticationResult?.IdToken,
@@ -91,10 +85,11 @@ async function login(email, password) {
   };
 }
 
-async function register(email, password, username) {
+async function register(email, password, username, event) {
   // Admin-only user creation (self-signup disabled)
   return {
     statusCode: 403,
+    headers: getCorsHeaders(event),
     body: JSON.stringify({
       error: 'User registration is admin-only. Please contact your administrator.',
     }),

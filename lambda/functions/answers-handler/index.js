@@ -4,6 +4,7 @@
  */
 
 const { createDbConnection } = require('/opt/nodejs/db-utils');
+const { getCorsHeaders } = require('/opt/nodejs/cors');
 
 exports.handler = async (event) => {
   console.log('Answers Handler:', JSON.stringify(event));
@@ -20,26 +21,26 @@ exports.handler = async (event) => {
     const submissionId = pathParameters?.submissionId || pathParameters?.id;
 
     if (!submissionId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Submission ID required' }) };
+      return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Submission ID required' }) };
     }
 
     switch (httpMethod) {
       case 'GET':
-        return await handleGetAnswers(dbClient, submissionId, userId);
+        return await handleGetAnswers(dbClient, submissionId, userId, event);
       case 'POST':
-        return await handleCreateAnswer(dbClient, submissionId, requestBody, userId);
+        return await handleCreateAnswer(dbClient, submissionId, requestBody, userId, event);
       default:
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Handler error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers: getCorsHeaders(event), body: JSON.stringify({ error: error.message }) };
   } finally {
     if (dbClient) await dbClient.end();
   }
 };
 
-async function handleGetAnswers(dbClient, submissionId, userId) {
+async function handleGetAnswers(dbClient, submissionId, userId, event) {
   // Get all questions and answers for a submission
   const query = `
     SELECT q.question_id, q.question_text, q.priority, q.created_at,
@@ -84,14 +85,14 @@ async function handleGetAnswers(dbClient, submissionId, userId) {
     return acc;
   }, []);
 
-  return { statusCode: 200, body: JSON.stringify({ questions, total: questions.length }) };
+  return { statusCode: 200, headers: getCorsHeaders(event), body: JSON.stringify({ questions, total: questions.length }) };
 }
 
-async function handleCreateAnswer(dbClient, submissionId, requestBody, userId) {
+async function handleCreateAnswer(dbClient, submissionId, requestBody, userId, event) {
   const { question_id, answer_text } = JSON.parse(requestBody);
 
   if (!question_id || !answer_text) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'question_id and answer_text required' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'question_id and answer_text required' }) };
   }
 
   // Validate question belongs to submission
@@ -101,7 +102,7 @@ async function handleCreateAnswer(dbClient, submissionId, requestBody, userId) {
   );
 
   if (questionCheck.rows.length === 0) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid question for this submission' }) };
+    return { statusCode: 400, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Invalid question for this submission' }) };
   }
 
   // Insert or update answer (upsert pattern)
@@ -115,5 +116,5 @@ async function handleCreateAnswer(dbClient, submissionId, requestBody, userId) {
   const result = await dbClient.query(query, [question_id, submissionId, answer_text, userId]);
 
   console.log(`Answer submitted for question ${question_id} by user ${userId}`);
-  return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
+  return { statusCode: 201, headers: getCorsHeaders(event), body: JSON.stringify(result.rows[0]) };
 }
