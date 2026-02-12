@@ -197,6 +197,30 @@ class ApiClient {
     }>(`/submissions/${submissionId}/content`);
   }
 
+  async getSubmissionAnnotation(submissionId: string) {
+    return this.request<{
+      annotation_id: string;
+      submission_id: string;
+      annotated_json: {
+        sections: Array<{
+          type: 'text' | 'annotations';
+          content?: string;
+          items?: Array<{
+            priority: 'high' | 'medium' | 'low';
+            type: 'recommendation' | 'weakness' | 'strength';
+            text: string;
+          }>;
+        }>;
+      };
+      model_used: string;
+      input_tokens: number;
+      output_tokens: number;
+      generation_time_ms: number;
+      created_at: string;
+      cached: boolean;
+    }>(`/submissions/${submissionId}/annotate`);
+  }
+
   async deleteSubmission(submissionId: string) {
     return this.request<{ message: string }>(`/submissions/${submissionId}`, {
       method: 'DELETE',

@@ -364,6 +364,23 @@ export class ComputeStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
 
+    // Annotate Document Handler (AI-powered document annotation)
+    const annotateDocumentHandler = new lambda.Function(this, 'AnnotateDocumentHandler', {
+      functionName: 'overlay-api-annotate-document',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/annotate-document'),
+      timeout: cdk.Duration.minutes(5), // 5 minutes for Claude API call
+      memorySize: 1024, // More memory for text processing
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      layers: [commonLayer],
+      environment: commonEnvironment,
+      description: 'Generates AI-powered annotated documents with recommendations',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
     // ==========================================================================
     // IAM PERMISSIONS
     // ==========================================================================
@@ -386,6 +403,7 @@ export class ComputeStack extends cdk.Stack {
       invitationsHandler,
       usersHandler,
       adminHandler,
+      annotateDocumentHandler,
     ];
 
     // Grant all Lambdas access to secrets
@@ -409,6 +427,12 @@ export class ComputeStack extends cdk.Stack {
     submissionsHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ['states:StartExecution'],
       resources: [stateMachineArn],
+    }));
+
+    // Grant annotate-document handler permission to invoke itself (for async background processing)
+    annotateDocumentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:overlay-api-annotate-document`],
     }));
 
     // Grant Bedrock access to AI functions
@@ -646,6 +670,13 @@ export class ComputeStack extends cdk.Stack {
     // /submissions/{submissionId}/analysis
     const submissionAnalysisResource = submissionIdResource.addResource('analysis');
     submissionAnalysisResource.addMethod('GET', new apigateway.LambdaIntegration(submissionsHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /submissions/{submissionId}/annotate
+    const submissionAnnotateResource = submissionIdResource.addResource('annotate');
+    submissionAnnotateResource.addMethod('GET', new apigateway.LambdaIntegration(annotateDocumentHandler), {
       authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

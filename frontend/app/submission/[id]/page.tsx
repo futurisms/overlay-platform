@@ -27,6 +27,8 @@ import {
   Paperclip,
   Download,
   ChevronDown,
+  FileSpreadsheet,
+  Sparkles,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -63,6 +65,9 @@ export default function SubmissionPage() {
   const [mainDocumentText, setMainDocumentText] = useState<string>("");
   const [appendicesContent, setAppendicesContent] = useState<Array<{ fileName: string; text: string; uploadOrder: number }>>([]);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [annotation, setAnnotation] = useState<any>(null);
+  const [isLoadingAnnotation, setIsLoadingAnnotation] = useState(false);
+  const [hasAttemptedAnnotation, setHasAttemptedAnnotation] = useState(false);
 
   useEffect(() => {
     // Check authentication
@@ -288,6 +293,83 @@ export default function SubmissionPage() {
     } catch (err) {
       toast.error("Failed to download appendix");
       console.error(err);
+    }
+  };
+
+  const handleGenerateAnnotation = async () => {
+    setIsLoadingAnnotation(true);
+    setHasAttemptedAnnotation(true);
+
+    const pollForAnnotation = async () => {
+      try {
+        const result = await apiClient.getSubmissionAnnotation(submissionId);
+
+        if (result.status === 202 || (result.data && (result.data as any).status === 'generating')) {
+          // Still generating, poll again in 3 seconds
+          console.log('[Annotate] Status: generating, polling again in 3 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          return pollForAnnotation(); // Recursive call to poll again
+        }
+
+        if (result.data && (result.data as any).status === 'completed') {
+          // Generation complete
+          setAnnotation(result.data);
+
+          if ((result.data as any).cached) {
+            toast.success("Loaded annotated document (cached)");
+          } else {
+            toast.success("Annotated document generated successfully!");
+          }
+          setIsLoadingAnnotation(false);
+          return;
+        }
+
+        // If we get here, something went wrong
+        toast.error(result.error || "Failed to generate annotation");
+        setIsLoadingAnnotation(false);
+      } catch (err: any) {
+        console.error("Annotation error:", err);
+        toast.error(err.message || "Failed to generate annotated document");
+        setIsLoadingAnnotation(false);
+      }
+    };
+
+    // Start polling
+    await pollForAnnotation();
+  };
+
+  const copyAnnotatedDocument = async () => {
+    if (!annotation?.annotated_json?.sections) return;
+
+    const sections = annotation.annotated_json.sections;
+    let output = "ANNOTATED DOCUMENT\n";
+    output += "=".repeat(80) + "\n\n";
+
+    sections.forEach((section: any, index: number) => {
+      if (section.type === "text") {
+        output += section.content + "\n\n";
+      } else if (section.type === "annotations" && section.items) {
+        output += "--- RECOMMENDATIONS & FEEDBACK ---\n";
+        section.items.forEach((item: any, itemIndex: number) => {
+          const prefix = item.priority === "high" ? "🔴" : item.priority === "medium" ? "🟡" : "🟢";
+          output += `${prefix} [${item.type.toUpperCase()}] ${item.text}\n`;
+        });
+        output += "\n";
+      }
+    });
+
+    output += "=".repeat(80) + "\n";
+    output += `Generated: ${new Date(annotation.created_at).toLocaleString()}\n`;
+    output += `Model: ${annotation.model_used}\n`;
+    output += `Tokens: ${annotation.input_tokens} in, ${annotation.output_tokens} out\n`;
+
+    try {
+      await navigator.clipboard.writeText(output);
+      toast.success("Annotated document copied to clipboard!");
+      setCopiedSection("annotated");
+      setTimeout(() => setCopiedSection(null), 2000);
+    } catch (err) {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -696,7 +778,7 @@ export default function SubmissionPage() {
         {/* Detailed Analysis */}
         {feedback && (
           <Tabs defaultValue="strengths" className="mb-8">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="strengths">
                 Strengths ({feedback.strengths?.length || 0})
               </TabsTrigger>
@@ -705,6 +787,10 @@ export default function SubmissionPage() {
               </TabsTrigger>
               <TabsTrigger value="recommendations">
                 Recommendations ({feedback.recommendations?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="annotated" className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Annotated Document
               </TabsTrigger>
             </TabsList>
 
@@ -866,6 +952,234 @@ export default function SubmissionPage() {
                     </ol>
                   ) : (
                     <p className="text-slate-600 dark:text-slate-400">No recommendations available</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="annotated">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-5 w-5 text-purple-600" />
+                        Annotated Document
+                      </CardTitle>
+                      <CardDescription>
+                        AI-generated document with recommendations woven into the original text
+                      </CardDescription>
+                    </div>
+                    {annotation && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={copyAnnotatedDocument}
+                        >
+                          {copiedSection === "annotated" ? (
+                            <>
+                              <Check className="h-4 w-4 text-green-500 mr-2" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy All
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                          className="opacity-50 cursor-not-allowed"
+                          title="Coming soon in Task 6"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Export to Word
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {!hasAttemptedAnnotation && !annotation ? (
+                    // Initial state: Show generate prompt
+                    <div className="flex flex-col items-center justify-center py-12 px-6 text-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
+                      <Sparkles className="h-12 w-12 text-purple-500 mb-4" />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                        Generate Annotated Document
+                      </h3>
+                      <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md">
+                        Create a sandwich-style document with AI recommendations interwoven into your original text.
+                        This typically takes <strong>1-2 minutes</strong> to generate, depending on document length.
+                      </p>
+                      <Button
+                        onClick={handleGenerateAnnotation}
+                        disabled={isLoadingAnnotation}
+                        size="lg"
+                      >
+                        {isLoadingAnnotation ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Generate Annotated Document
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
+                        Cost: ~$0.04 per generation • Results are cached
+                      </p>
+                    </div>
+                  ) : isLoadingAnnotation ? (
+                    // Loading state
+                    <div className="flex flex-col items-center justify-center py-12 px-6">
+                      <Loader2 className="h-12 w-12 text-purple-600 animate-spin mb-4" />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                        Generating Annotated Document...
+                      </h3>
+                      <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
+                        AI is analyzing your document and weaving recommendations into the text.
+                        This typically takes 1-2 minutes, depending on document length.
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-4">
+                        <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></div>
+                        <span>Processing with Claude Sonnet 4.5...</span>
+                      </div>
+                    </div>
+                  ) : annotation ? (
+                    // Render annotated document
+                    <div className="space-y-6">
+                      {/* Sections */}
+                      <div className="space-y-6">
+                        {annotation.annotated_json.sections.map((section: any, index: number) => {
+                          if (section.type === "text") {
+                            return (
+                              <div
+                                key={index}
+                                className="prose prose-slate dark:prose-invert max-w-none"
+                              >
+                                <div className="whitespace-pre-wrap text-slate-700 dark:text-slate-300 leading-relaxed">
+                                  {section.content}
+                                </div>
+                              </div>
+                            );
+                          } else if (section.type === "annotations") {
+                            return (
+                              <div key={index} className="space-y-3 my-8">
+                                {section.items.map((item: any, itemIndex: number) => {
+                                  const priorityColors = {
+                                    high: {
+                                      border: "border-l-red-500",
+                                      bg: "bg-red-50 dark:bg-red-950/20",
+                                      badge: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+                                    },
+                                    medium: {
+                                      border: "border-l-orange-500",
+                                      bg: "bg-orange-50 dark:bg-orange-950/20",
+                                      badge: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+                                    },
+                                    low: {
+                                      border: "border-l-green-500",
+                                      bg: "bg-green-50 dark:bg-green-950/20",
+                                      badge: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                                    },
+                                  };
+
+                                  const colors = priorityColors[item.priority as keyof typeof priorityColors];
+
+                                  return (
+                                    <div
+                                      key={itemIndex}
+                                      className={`border-l-4 ${colors.border} ${colors.bg} p-4 rounded-r-lg`}
+                                    >
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Badge
+                                          variant="secondary"
+                                          className={`${colors.badge} text-xs font-bold uppercase`}
+                                        >
+                                          {item.priority}
+                                        </Badge>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">
+                                          {item.type}
+                                        </span>
+                                      </div>
+                                      <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                                        {item.text}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+
+                      {/* Metadata footer */}
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-8">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold mb-1">
+                              Generated
+                            </p>
+                            <p className="text-slate-700 dark:text-slate-300">
+                              {new Date(annotation.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold mb-1">
+                              Model
+                            </p>
+                            <p className="text-slate-700 dark:text-slate-300 font-mono text-xs">
+                              {annotation.model_used.replace("claude-", "")}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold mb-1">
+                              Tokens
+                            </p>
+                            <p className="text-slate-700 dark:text-slate-300">
+                              {annotation.input_tokens.toLocaleString()} in • {annotation.output_tokens.toLocaleString()} out
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold mb-1">
+                              Generation Time
+                            </p>
+                            <p className="text-slate-700 dark:text-slate-300">
+                              {(annotation.generation_time_ms / 1000).toFixed(1)}s
+                              {annotation.cached && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  Cached
+                                </Badge>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Error state
+                    <div className="text-center py-8">
+                      <p className="text-slate-600 dark:text-slate-400">
+                        Failed to load annotated document. Please try again.
+                      </p>
+                      <Button
+                        onClick={handleGenerateAnnotation}
+                        variant="outline"
+                        className="mt-4"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
