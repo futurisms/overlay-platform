@@ -725,14 +725,14 @@ export default function SubmissionPage() {
           )}
         </Card>
 
-        {/* Overall Score (if available) */}
+        {/* Content Quality Score (if available) */}
         {feedback && feedback.overall_score !== null && (
           <Card className="mb-8 border-2">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl mb-2">Overall Analysis Score</CardTitle>
-                  <CardDescription>AI-generated evaluation of your document</CardDescription>
+                  <CardTitle className="text-2xl mb-2">Content Quality Score</CardTitle>
+                  <CardDescription>AI-generated evaluation of your document content</CardDescription>
                 </div>
                 <div className="text-center">
                   <div className={`text-6xl font-bold ${getScoreColor(feedback.overall_score)}`}>

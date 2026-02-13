@@ -664,7 +664,7 @@ async function handleGetFeedback(dbClient, pathParameters, userId, event) {
   // Parse the JSON content from feedback_reports
   const feedbackContent = JSON.parse(scoringResult.rows[0].content);
   const scoringData = {
-    overall_score: feedbackContent.scores?.average || feedbackContent.overall_score || null,
+    overall_score: feedbackContent.scores?.content || feedbackContent.scores?.average || feedbackContent.overall_score || null,
     strengths: feedbackContent.strengths || [],
     weaknesses: feedbackContent.weaknesses || [],
     recommendations: feedbackContent.recommendations || [],
