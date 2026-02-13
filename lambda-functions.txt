@@ -1,0 +1,28 @@
+---------------------------------------------------------------------------------------------------------
+|                                             ListFunctions                                             |
++-------------------------------+---------+------------------------------------+-------------+----------+
+|         LastModified          | Memory  |               Name                 |   Runtime   | Timeout  |
++-------------------------------+---------+------------------------------------+-------------+----------+
+|  2026-02-11T15:35:51.000+0000 |  512    |  overlay-database-migration        |  nodejs20.x |  900     |
+|  2026-01-25T20:31:24.000+0000 |  256    |  overlay-s3-trigger                |  nodejs20.x |  30      |
+|  2026-01-20T12:19:15.825+0000 |  128    |  overlay-cognito-postauth          |  nodejs20.x |  3       |
+|  2026-02-09T19:11:00.000+0000 |  512    |  overlay-api-notes                 |  nodejs20.x |  30      |
+|  2026-02-13T09:49:33.000+0000 |  512    |  overlay-api-submissions           |  nodejs20.x |  60      |
+|  2026-02-13T09:59:45.000+0000 |  1024   |  overlay-api-annotate-document     |  nodejs20.x |  300     |
+|  2026-02-09T19:11:00.000+0000 |  512    |  overlay-api-sessions              |  nodejs20.x |  30      |
+|  2026-02-09T18:37:45.000+0000 |  512    |  overlay-query-results             |  nodejs20.x |  30      |
+|  2026-02-10T13:05:46.000+0000 |  512    |  overlay-api-invitations           |  nodejs20.x |  30      |
+|  2026-02-13T11:01:25.000+0000 |  256    |  overlay-api-auth                  |  nodejs20.x |  30      |
+|  2026-02-09T18:37:45.000+0000 |  512    |  overlay-grammar-checker           |  nodejs20.x |  120     |
+|  2026-01-21T11:36:27.000+0000 |  256    |  overlay-api-llm-config            |  nodejs20.x |  30      |
+|  2026-02-09T18:37:45.000+0000 |  512    |  overlay-scoring                   |  nodejs20.x |  180     |
+|  2026-02-09T18:37:45.000+0000 |  256    |  overlay-api-users                 |  nodejs20.x |  30      |
+|  2026-02-09T19:38:15.000+0000 |  512    |  overlay-api-admin                 |  nodejs20.x |  30      |
+|  2026-02-09T18:37:45.000+0000 |  512    |  overlay-structure-validator       |  nodejs20.x |  120     |
+|  2026-01-20T12:45:50.032+0000 |  256    |  overlay-analysis-success-handler  |  nodejs20.x |  30      |
+|  2026-02-13T11:12:50.000+0000 |  512    |  overlay-api-overlays              |  nodejs20.x |  30      |
+|  2026-02-09T18:37:46.000+0000 |  1024   |  overlay-orchestrator              |  nodejs20.x |  300     |
+|  2026-02-09T18:37:45.000+0000 |  1024   |  overlay-content-analyzer          |  nodejs20.x |  300     |
+|  2026-01-20T12:19:14.876+0000 |  128    |  overlay-cognito-presignup         |  nodejs20.x |  3       |
+|  2026-02-09T18:37:45.000+0000 |  1024   |  overlay-clarification             |  nodejs20.x |  180     |
++-------------------------------+---------+------------------------------------+-------------+----------+

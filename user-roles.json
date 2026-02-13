@@ -1,0 +1,1 @@
+{"statusCode":200,"body":"{\"success\":true,\"message\":\"Query executed successfully\",\"rowCount\":2,\"rows\":[{\"user_role\":\"admin\",\"count\":\"14\"},{\"user_role\":\"analyst\",\"count\":\"5\"}]}"}

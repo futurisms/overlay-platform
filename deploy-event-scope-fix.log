@@ -1,0 +1,211 @@
+Creating VPC with private subnets...
+Creating Aurora Serverless v2 PostgreSQL cluster...
+Creating DynamoDB table for LLM configuration...
+Creating Secrets Manager secret for Claude API key...
+Creating S3 bucket for document storage...
+Creating DynamoDB table for document metadata...
+Creating database migration Lambda function...
+Creating Cognito User Pool...
+[WARNING] aws-cdk-lib.aws_cognito.UserPoolProps#advancedSecurityMode is deprecated.
+  Advanced Security Mode is deprecated due to user pool feature plans. Use StandardThreatProtectionMode and CustomThreatProtectionMode to set Thread Protection level.
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_cognito.AdvancedSecurityMode is deprecated.
+  Advanced Security Mode is deprecated due to user pool feature plans. Use StandardThreatProtectionMode and CustomThreatProtectionMode to set Thread Protection level.
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_cognito.AdvancedSecurityMode#ENFORCED is deprecated.
+  
+  This API will be removed in the next major release.
+Creating Cognito User Groups...
+Creating Lambda layer for shared code...
+Creating AI agent Lambda functions...
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+Creating API Lambda functions...
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+Configuring IAM permissions...
+Creating API Gateway REST API...
+Creating SQS queues for async processing...
+Creating Step Functions state machine for 6-agent workflow...
+Creating S3 event trigger for document uploads...
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+Creating EventBridge rules...
+[WARNING] aws-cdk-lib.aws_lambda.FunctionOptions#logRetention is deprecated.
+  use `logGroup` instead
+  This API will be removed in the next major release.
+Including dependency stacks: OverlayStorageStack, OverlayAuthStack
+
+✨  Synthesis time: 14.97s
+
+OverlayStorageStack
+OverlayStorageStack: deploying... [1/3]
+OverlayComputeStack: start: Building OverlaysHandler/Code
+OverlayComputeStack: success: Built OverlaysHandler/Code
+OverlayComputeStack: start: Building SessionsHandler/Code
+OverlayComputeStack: success: Built SessionsHandler/Code
+OverlayComputeStack: start: Building SubmissionsHandler/Code
+OverlayComputeStack: success: Built SubmissionsHandler/Code
+OverlayComputeStack: start: Building NotesHandler/Code
+OverlayComputeStack: success: Built NotesHandler/Code
+OverlayComputeStack: start: Building OverlayComputeStack Template
+OverlayComputeStack: success: Built OverlayComputeStack Template
+
+ ✅  OverlayStorageStack (no changes)
+
+✨  Deployment time: 0.81s
+
+Outputs:
+OverlayStorageStack.AuroraClusterEndpoint = overlaystoragestack-auroracluster23d869c0-higkke9k7oro.cluster-chwcq22k4a75.eu-west-1.rds.amazonaws.com
+OverlayStorageStack.AuroraClusterReadEndpoint = overlaystoragestack-auroracluster23d869c0-higkke9k7oro.cluster-ro-chwcq22k4a75.eu-west-1.rds.amazonaws.com
+OverlayStorageStack.AuroraSecretArn = arn:aws:secretsmanager:eu-west-1:975050116849:secret:overlay/aurora/production/credentials-E3A4vl
+OverlayStorageStack.ClaudeApiKeySecretArn = arn:aws:secretsmanager:eu-west-1:975050116849:secret:overlay/claude/production/api-key-oZkZHk
+OverlayStorageStack.DocumentBucketName = overlay-docs-975050116849
+OverlayStorageStack.DocumentTableName = overlay-documents
+OverlayStorageStack.ExportsOutputFnGetAttAuroraCluster23D869C0EndpointAddress064B8907 = overlaystoragestack-auroracluster23d869c0-higkke9k7oro.cluster-chwcq22k4a75.eu-west-1.rds.amazonaws.com
+OverlayStorageStack.ExportsOutputFnGetAttDocumentBucketAE41E5A9ArnF6A03022 = arn:aws:s3:::overlay-docs-975050116849
+OverlayStorageStack.ExportsOutputFnGetAttDocumentTable9FE6D880ArnB81CFCCE = arn:aws:dynamodb:eu-west-1:975050116849:table/overlay-documents
+OverlayStorageStack.ExportsOutputFnGetAttLLMConfigTable78850B42ArnE8E405A9 = arn:aws:dynamodb:eu-west-1:975050116849:table/overlay-llm-config
+OverlayStorageStack.ExportsOutputRefAuroraClusterSecretAttachmentDB8032DAFDEEBE73 = arn:aws:secretsmanager:eu-west-1:975050116849:secret:overlay/aurora/production/credentials-E3A4vl
+OverlayStorageStack.ExportsOutputRefClaudeApiKeySecret8AF27FF1AC51B7EA = arn:aws:secretsmanager:eu-west-1:975050116849:secret:overlay/claude/production/api-key-oZkZHk
+OverlayStorageStack.ExportsOutputRefDocumentBucketAE41E5A9880EA18D = overlay-docs-975050116849
+OverlayStorageStack.ExportsOutputRefDocumentTable9FE6D880209F07E0 = overlay-documents
+OverlayStorageStack.ExportsOutputRefLLMConfigTable78850B424BE95E75 = overlay-llm-config
+OverlayStorageStack.ExportsOutputRefOverlayVPCDCA79B61A0D57D4A = vpc-0e632941832df0af7
+OverlayStorageStack.ExportsOutputRefOverlayVPCPrivateSubnet1Subnet8293E8FD62B74DF3 = subnet-09c2a8bab48221064
+OverlayStorageStack.ExportsOutputRefOverlayVPCPrivateSubnet2SubnetABA2A1CD3DD6B36A = subnet-00df92c5cb9d23a9b
+OverlayStorageStack.LLMConfigTableName = overlay-llm-config
+OverlayStorageStack.MigrationFunctionArn = arn:aws:lambda:eu-west-1:975050116849:function:overlay-database-migration
+OverlayStorageStack.MigrationFunctionName = overlay-database-migration
+OverlayStorageStack.VpcId = vpc-0e632941832df0af7
+Stack ARN:
+arn:aws:cloudformation:eu-west-1:975050116849:stack/OverlayStorageStack/c2d590c0-f56a-11f0-9bab-02e353d16d59
+
+✨  Total time: 15.78s
+
+OverlayAuthStack
+OverlayAuthStack: deploying... [2/3]
+
+ ✅  OverlayAuthStack (no changes)
+
+✨  Deployment time: 0.31s
+
+Outputs:
+OverlayAuthStack.ExportsOutputFnGetAttOverlayUserPoolB56E9983ArnD2698334 = arn:aws:cognito-idp:eu-west-1:975050116849:userpool/eu-west-1_lC25xZ8s6
+OverlayAuthStack.ExportsOutputRefOverlayUserPoolB56E9983846AEF73 = eu-west-1_lC25xZ8s6
+OverlayAuthStack.ExportsOutputRefOverlayUserPoolOverlayWebClient02D20D0D53F199D1 = 4e45pdiobcm8qo3ehvi1bcmo2s
+OverlayAuthStack.UserPoolArn = arn:aws:cognito-idp:eu-west-1:975050116849:userpool/eu-west-1_lC25xZ8s6
+OverlayAuthStack.UserPoolClientId = 4e45pdiobcm8qo3ehvi1bcmo2s
+OverlayAuthStack.UserPoolDomain = https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_lC25xZ8s6
+OverlayAuthStack.UserPoolId = eu-west-1_lC25xZ8s6
+Stack ARN:
+arn:aws:cloudformation:eu-west-1:975050116849:stack/OverlayAuthStack/2a9b1100-f5fa-11f0-ad14-025a3a5febd7
+
+✨  Total time: 15.28s
+
+OverlayComputeStack: start: Publishing SubmissionsHandler/Code (975050116849-eu-west-1-4bda8ab0)
+OverlayComputeStack: start: Publishing SessionsHandler/Code (975050116849-eu-west-1-cd1a92a0)
+OverlayComputeStack: start: Publishing OverlaysHandler/Code (975050116849-eu-west-1-7945414d)
+OverlayComputeStack: start: Publishing NotesHandler/Code (975050116849-eu-west-1-57d22b6c)
+OverlayComputeStack: start: Publishing OverlayComputeStack Template (975050116849-eu-west-1-d4341831)
+OverlayComputeStack: success: Published NotesHandler/Code (975050116849-eu-west-1-57d22b6c)
+OverlayComputeStack: success: Published OverlaysHandler/Code (975050116849-eu-west-1-7945414d)
+OverlayComputeStack: success: Published SessionsHandler/Code (975050116849-eu-west-1-cd1a92a0)
+OverlayComputeStack: success: Published SubmissionsHandler/Code (975050116849-eu-west-1-4bda8ab0)
+OverlayComputeStack: success: Published OverlayComputeStack Template (975050116849-eu-west-1-d4341831)
+OverlayComputeStack
+OverlayComputeStack: deploying... [3/3]
+OverlayComputeStack: creating CloudFormation changeset...
+OverlayComputeStack |  0/90 | 19:10:51 | UPDATE_IN_PROGRESS   | AWS::CloudFormation::Stack  | OverlayComputeStack User Initiated
+OverlayComputeStack |  0/90 | 19:10:58 | UPDATE_IN_PROGRESS   | AWS::Lambda::Function       | SessionsHandler (SessionsHandler0955C787) 
+OverlayComputeStack |  0/90 | 19:10:58 | UPDATE_IN_PROGRESS   | AWS::Lambda::Function       | OverlaysHandler (OverlaysHandlerDA9816C4) 
+OverlayComputeStack |  0/90 | 19:10:58 | UPDATE_IN_PROGRESS   | AWS::Lambda::Function       | NotesHandler (NotesHandlerA6E3704E) 
+OverlayComputeStack |  0/90 | 19:10:58 | UPDATE_IN_PROGRESS   | AWS::Lambda::Function       | SubmissionsHandler (SubmissionsHandler1B26B003) 
+OverlayComputeStack |  1/90 | 19:11:06 | UPDATE_COMPLETE      | AWS::Lambda::Function       | SessionsHandler (SessionsHandler0955C787) 
+OverlayComputeStack |  2/90 | 19:11:06 | UPDATE_COMPLETE      | AWS::Lambda::Function       | NotesHandler (NotesHandlerA6E3704E) 
+OverlayComputeStack |  3/90 | 19:11:06 | UPDATE_COMPLETE      | AWS::Lambda::Function       | SubmissionsHandler (SubmissionsHandler1B26B003) 
+OverlayComputeStack |  4/90 | 19:11:06 | UPDATE_COMPLETE      | AWS::Lambda::Function       | OverlaysHandler (OverlaysHandlerDA9816C4) 
+OverlayComputeStack |  5/90 | 19:11:09 | UPDATE_COMPLETE_CLEA | AWS::CloudFormation::Stack  | OverlayComputeStack 
+OverlayComputeStack |  6/90 | 19:11:11 | UPDATE_COMPLETE      | AWS::CloudFormation::Stack  | OverlayComputeStack 
+
+ ✅  OverlayComputeStack
+
+✨  Deployment time: 59.9s
+
+Outputs:
+OverlayComputeStack.ApiEndpoint = https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production/
+OverlayComputeStack.ApiId = wojz5amtrl
+OverlayComputeStack.ExportsOutputFnGetAttClarificationFunction4DF98533ArnBA9076FE = arn:aws:lambda:eu-west-1:975050116849:function:overlay-clarification
+OverlayComputeStack.ExportsOutputFnGetAttContentAnalyzerFunction9C3E5280ArnFE96C733 = arn:aws:lambda:eu-west-1:975050116849:function:overlay-content-analyzer
+OverlayComputeStack.ExportsOutputFnGetAttGrammarCheckerFunction326B3F01Arn346CDA8A = arn:aws:lambda:eu-west-1:975050116849:function:overlay-grammar-checker
+OverlayComputeStack.ExportsOutputFnGetAttOrchestratorFunctionA7356840ArnCAB7CA21 = arn:aws:lambda:eu-west-1:975050116849:function:overlay-orchestrator
+OverlayComputeStack.ExportsOutputFnGetAttScoringFunctionEEC8206DArn5949B220 = arn:aws:lambda:eu-west-1:975050116849:function:overlay-scoring
+OverlayComputeStack.ExportsOutputFnGetAttStructureValidatorFunction29859261ArnCB7B00E6 = arn:aws:lambda:eu-west-1:975050116849:function:overlay-structure-validator
+OverlayComputeStack.OverlayApiEndpointE15E3B7E = https://wojz5amtrl.execute-api.eu-west-1.amazonaws.com/production/
+Stack ARN:
+arn:aws:cloudformation:eu-west-1:975050116849:stack/OverlayComputeStack/8c47e110-f5fc-11f0-80d8-06c391dea50f
+
+✨  Total time: 74.88s
+
+
+NOTICES         (What's this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)
+
+34892	CDK CLI collects telemetry data on command usage starting at version 2.1100.0 (unless opted out)
+
+	Overview: We do not collect customer content and we anonymize the
+	          telemetry we do collect. See the attached issue for more
+	          information on what data is collected, why, and how to
+	          opt-out. Telemetry will NOT be collected for any CDK CLI
+	          version prior to version 2.1100.0 - regardless of
+	          opt-in/out. You can also view the telemetry we collect by
+	          logging it to a local file, by adding
+	          `--telemetry-file=my/local/file` to any `cdk` command.
+
+	Affected versions: cli: ^2.1100.0
+
+	More information at: https://github.com/aws/aws-cdk/issues/34892
+
+
+If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 34892".

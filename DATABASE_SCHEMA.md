@@ -1,5 +1,5 @@
 # DATABASE SCHEMA REFERENCE
-## Overlay Platform v1.1 Stable
+## Overlay Platform v1.8 Stable
 
 **Database**: Amazon Aurora PostgreSQL 16.6 Serverless v2
 **Date**: February 13, 2026
@@ -1431,8 +1431,8 @@ The Overlay Platform database schema is **production-ready** with:
 - ✅ Complete audit trail via CloudWatch
 - ✅ Automated backups and disaster recovery
 
-**Version**: v1.1 Stable
-**Git Tag**: v1.1-stable (commit de12833)
+**Version**: v1.8 Stable
+**Git Tag**: v1.8-stable (commit de12833)
 **Snapshot**: overlay-v1-1-stable-20260213
 **Status**: Production deployment ready
 **Documentation**: Complete and up-to-date

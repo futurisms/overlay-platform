@@ -1,0 +1,262 @@
+[
+    {
+        "id": "17f3jq",
+        "path": "/invitations",
+        "methods": {
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "1lcrj3",
+        "path": "/sessions/{sessionId}/{proxy+}",
+        "methods": {
+            "GET": {}
+        }
+    },
+    {
+        "id": "1q18ip",
+        "path": "/submissions/{submissionId}/download",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "3vfs86",
+        "path": "/sessions/{sessionId}/submissions",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "4pdq5h",
+        "path": "/admin/submissions",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "5crmaq",
+        "path": "/users/me",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "5tr81w",
+        "path": "/submissions/{submissionId}/analysis",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "62kks9",
+        "path": "/sessions/{sessionId}/invitations",
+        "methods": {
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "68tu74",
+        "path": "/overlays/{overlayId}",
+        "methods": {
+            "DELETE": {},
+            "GET": {},
+            "OPTIONS": {},
+            "PUT": {}
+        }
+    },
+    {
+        "id": "6covwb",
+        "path": "/sessions/{sessionId}/report",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "7cm7rb",
+        "path": "/notes/{noteId}",
+        "methods": {
+            "DELETE": {},
+            "GET": {},
+            "OPTIONS": {},
+            "PUT": {}
+        }
+    },
+    {
+        "id": "7ot50f",
+        "path": "/admin/analytics",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "8og6n5",
+        "path": "/overlays",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "bvj8op",
+        "path": "/submissions/{submissionId}",
+        "methods": {
+            "DELETE": {},
+            "GET": {},
+            "OPTIONS": {},
+            "PUT": {}
+        }
+    },
+    {
+        "id": "cf4ygi",
+        "path": "/notes",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "enrgk6",
+        "path": "/admin",
+        "methods": {
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "gerr4a",
+        "path": "/submissions",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "gzmg3t",
+        "path": "/invitations/{token}/accept",
+        "methods": {
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "itv7sp",
+        "path": "/sessions/{sessionId}/participants",
+        "methods": {
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "lfcpub",
+        "path": "/sessions/available",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "lvlgjx",
+        "path": "/sessions/{sessionId}/export",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "mnh6s4",
+        "path": "/submissions/{submissionId}/{proxy+}",
+        "methods": {
+            "GET": {}
+        }
+    },
+    {
+        "id": "n5wpf4",
+        "path": "/llm-config",
+        "methods": {
+            "GET": {}
+        }
+    },
+    {
+        "id": "najpu5",
+        "path": "/submissions/{submissionId}/feedback",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "okobux",
+        "path": "/sessions/{sessionId}",
+        "methods": {
+            "DELETE": {},
+            "GET": {},
+            "OPTIONS": {},
+            "PUT": {}
+        }
+    },
+    {
+        "id": "s6cnwn6c58",
+        "path": "/",
+        "methods": {
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "skhvwe",
+        "path": "/sessions/{sessionId}/participants/{userId}",
+        "methods": {
+            "DELETE": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "u4w1fd",
+        "path": "/auth",
+        "methods": {
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "va6wem",
+        "path": "/sessions",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {},
+            "POST": {}
+        }
+    },
+    {
+        "id": "y0iy2s",
+        "path": "/users",
+        "methods": {
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "y4kui9",
+        "path": "/invitations/{token}",
+        "methods": {
+            "GET": {},
+            "OPTIONS": {}
+        }
+    },
+    {
+        "id": "y7o586",
+        "path": "/llm-config/{agentName}",
+        "methods": {
+            "GET": {},
+            "PUT": {}
+        }
+    }
+]

@@ -90,6 +90,16 @@ const server = http.createServer((req, res) => {
       proxyRes.pipe(res);
     });
 
+    // Set timeout to 5 minutes (matches Lambda timeout) for long-running operations like annotation generation
+    proxyReq.setTimeout(300000, () => {
+      console.error('Request timeout after 300 seconds');
+      if (!res.headersSent) {
+        res.writeHead(504);
+        res.end(JSON.stringify({ error: 'Gateway timeout - request took longer than 5 minutes' }));
+      }
+      proxyReq.abort();
+    });
+
     proxyReq.on('error', (error) => {
       console.error('Proxy error:', error);
       res.writeHead(500);

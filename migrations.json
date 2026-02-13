@@ -1,0 +1,1 @@
+{"statusCode":500,"body":"{\"success\":false,\"error\":\"relation \\\"schema_migrations\\\" does not exist\",\"stack\":\"error: relation \\\"schema_migrations\\\" does not exist\\n    at /var/task/node_modules/pg/lib/client.js:588:17\\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\\n    at async exports.handler (/var/task/index.js:214:22)\"}"}

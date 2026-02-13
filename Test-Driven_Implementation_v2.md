@@ -1,6 +1,6 @@
 ---
 name: test-driven-implementation
-description: Systematic implementation with mandatory verification at each step. Use when building features that involve database changes, API endpoints, role-based access, multi-user functionality, or data isolation. Enforces pre-implementation planning (listing ALL tables, endpoints, components needed), incremental verification (testing after EACH step), end-to-end validation (complete user flows with multiple roles), and production readiness verification (CORS, auth, cross-origin testing). Prevents missing dependencies, untested code, data leaks, and the #1 deployment failure where everything works on localhost but breaks in production. Essential for full-stack features, permission systems, multi-role applications, and production deployments.
+description: Systematic implementation with mandatory verification at each step. Use when building features that involve database changes, API endpoints, role-based access, multi-user functionality, or data isolation. Enforces pre-implementation planning (listing ALL tables, endpoints, components needed), incremental verification (testing after EACH step), and end-to-end validation (complete user flows with multiple roles). Prevents missing dependencies, untested code, and data leaks. Essential for full-stack features, permission systems, and multi-role applications.
 ---
 
 # Test-Driven Implementation
@@ -11,7 +11,7 @@ Systematic approach to prevent missing dependencies, untested code, and integrat
 
 **NEVER proceed to next step without verification of current step.**
 
-Every feature requires four phases: Plan → Implement with Verification → End-to-End Test → **Production Readiness Check**.
+Every feature requires four phases: Plan → Implement with Verification → End-to-End Test → Production Readiness.
 
 ## Phase 1: Pre-Implementation Analysis (MANDATORY)
 
@@ -66,13 +66,6 @@ Permission Checks:
 - [ ] Admin-only operations
 - [ ] Resource ownership verification
 - [ ] Role-based filtering
-
-Cross-Origin Requirements: ⭐ NEW
-- [ ] CORS headers included in ALL Lambda responses (200, 400, 401, 403, 500)
-- [ ] Shared CORS utility created and imported by all handlers
-- [ ] event parameter passed to ALL helper functions that return responses
-- [ ] API Gateway CORS configured for all deployment origins
-- [ ] Error responses include CORS headers (not just success responses)
 
 Error Cases:
 - [ ] 400 Bad Request (validation)
@@ -200,14 +193,6 @@ curl -X POST https://api/endpoint
 curl -X POST https://api/endpoint \
   -H "Authorization: Bearer $ANALYST_TOKEN"
 # Expected: 403
-
-# Test CORS headers (CRITICAL for cross-origin deployments) ⭐ NEW
-curl -v -X GET https://api/endpoint \
-  -H "Origin: https://your-production-frontend.com" \
-  -H "Authorization: Bearer $TOKEN" \
-  2>&1 | grep -i "access-control-allow-origin"
-# Expected: Access-Control-Allow-Origin: https://your-production-frontend.com
-# If missing: Lambda response is missing CORS headers!
 ```
 
 **Document:**
@@ -343,9 +328,6 @@ Mark feature complete ONLY when ALL checks pass:
 - [ ] All error cases return correct codes
 - [ ] CloudWatch logs clean (no errors)
 - [ ] Token tracking working (if applicable)
-- [ ] ALL responses include CORS headers (success AND error) ⭐
-- [ ] Shared CORS utility used by every handler ⭐
-- [ ] event parameter passed to all helper functions ⭐
 
 ### Frontend ✅
 - [ ] All pages render without errors
@@ -390,40 +372,6 @@ Mark feature complete ONLY when ALL checks pass:
 **Caught in:** Phase 2 & 3 - Edge case testing
 **Prevention:** Test invalid data, missing auth, expired tokens
 
-### ❌ Lambda Responses Missing CORS Headers ⭐ NEW
-**Caught in:** Phase 2 - API verification with Origin header
-**Prevention:** Use shared CORS utility from day one. Include CORS headers in EVERY return statement (200, 400, 500). Never add CORS retroactively without checking all helper functions.
-
-### ❌ event Parameter Not Passed to Helper Functions ⭐ NEW
-**Caught in:** Phase 2 - API endpoint test returns 500, CloudWatch shows "event is not defined"
-**Prevention:** When handlers use helper functions (handleGet, handlePost, etc.), ALWAYS pass `event` as a parameter. The `event` object only exists in exports.handler scope.
-
-```javascript
-// ❌ BUG - event not in handleGet's parameters
-exports.handler = async (event) => {
-  return await handleGet(dbClient, userId);  // event not passed!
-};
-async function handleGet(dbClient, userId) {
-  return { headers: getCorsHeaders(event) };  // 💥 event is not defined
-}
-
-// ✅ FIX - event passed through
-exports.handler = async (event) => {
-  return await handleGet(dbClient, userId, event);  // passed!
-};
-async function handleGet(dbClient, userId, event) {
-  return { headers: getCorsHeaders(event) };  // ✅ works
-}
-```
-
-### ❌ Works on Localhost but Breaks in Production ⭐ NEW
-**Caught in:** Phase 4 - Production Readiness Check
-**Prevention:** Localhost hides CORS issues because Next.js dev proxy makes API calls same-origin. ALWAYS test endpoints with `Origin: https://your-production-url.com` header before deploying. Use Phase 4 checklist.
-
-### ❌ Fixing Endpoints One at a Time (Whack-a-Mole) ⭐ NEW
-**Caught in:** Phase 4 - Complete endpoint audit
-**Prevention:** NEVER fix one handler and deploy. Audit ALL handler files first, fix ALL of them, deploy once, test ALL endpoints in one pass.
-
 ## Success Criteria
 
 Feature passes when:
@@ -433,162 +381,9 @@ Feature passes when:
 ✅ **Integration tested:** Complete user flows verified  
 ✅ **Permissions enforced:** All role checks working  
 ✅ **Data isolated:** Users see only their data  
-✅ **CORS verified:** All handlers return CORS headers, event passed to all helpers ⭐  
-✅ **Production ready:** All endpoints tested with production Origin header ⭐  
 ✅ **Documented:** All tests recorded with results
 
-NO shortcuts. NO "I'll test it later." NO "It works on localhost so it's fine."
-
-## Phase 4: Production Readiness Check (BEFORE DEPLOYING FRONTEND) ⭐ NEW
-
-**This phase catches issues that ONLY appear in production.** Localhost development hides these because the dev proxy bypasses CORS and makes cross-origin calls appear same-origin.
-
-### The Localhost-to-Production Gap
-
-| Aspect | Localhost | Production |
-|--------|-----------|------------|
-| CORS | Bypassed by dev proxy | Enforced by browser |
-| API calls | Same-origin (proxy) | Cross-origin (different domains) |
-| Env variables | `.env.local` | Hosting platform config |
-| Auth tokens | Work via proxy | Need CORS headers to be readable |
-| Errors | Visible in terminal | Hidden in CloudWatch |
-
-### 4.1 CORS Audit (Run BEFORE deploying)
-
-**Check 1: Every Lambda handler has CORS headers**
-```bash
-for f in $(find lambda/functions -name "*.js" -not -path "*/node_modules/*"); do
-  RETURNS=$(grep -c "statusCode" "$f")
-  CORS=$(grep -c "getCorsHeaders\|Access-Control-Allow-Origin" "$f")
-  if [ "$RETURNS" -gt 0 ] && [ "$CORS" -eq 0 ]; then
-    echo "❌ MISSING CORS: $f"
-  elif [ "$RETURNS" -gt "$CORS" ]; then
-    echo "⚠️  PARTIAL CORS: $f ($RETURNS returns, $CORS with CORS)"
-  else
-    echo "✅ OK: $f"
-  fi
-done
-```
-
-**Check 2: event parameter passed to all helper functions**
-```bash
-# Find helper functions that use getCorsHeaders but may not have event param
-for f in $(find lambda/functions -name "*.js" -not -path "*/node_modules/*"); do
-  grep -n "function " "$f" | grep -v "exports.handler\|getCorsHeaders" | while read line; do
-    FUNC=$(echo "$line" | grep -oP "function \K\w+")
-    HAS_EVENT=$(echo "$line" | grep -c "event")
-    LINE_NUM=$(echo "$line" | cut -d: -f1)
-    USES_CORS=$(sed -n "${LINE_NUM},+50p" "$f" | grep -c "getCorsHeaders(event)")
-    if [ "$USES_CORS" -gt 0 ] && [ "$HAS_EVENT" -eq 0 ]; then
-      echo "❌ BUG: $f → $FUNC() uses getCorsHeaders(event) but missing event param"
-    fi
-  done
-done
-```
-
-**Check 3: API Gateway allows production origin**
-```bash
-grep -A5 "allowOrigins" lib/*.ts
-# Must include your production URL
-```
-
-**ALL checks must show ✅ before deploying.**
-
-### 4.2 Simulated Production Test
-
-Test every endpoint as if you're the production frontend:
-
-```bash
-export API_URL="https://YOUR-API-ID.execute-api.REGION.amazonaws.com/production"
-export PROD_ORIGIN="https://your-app.vercel.app"
-
-# Get auth token
-TOKEN=$(curl -s -X POST "$API_URL/auth" \
-  -H "Content-Type: application/json" \
-  -H "Origin: $PROD_ORIGIN" \
-  -d '{"action":"login","email":"admin@example.com","password":"PASSWORD"}' | jq -r '.idToken')
-
-# Test EVERY endpoint
-ENDPOINTS=("me" "sessions" "overlays" "submissions" "admin/analytics")
-
-for endpoint in "${ENDPOINTS[@]}"; do
-  # Check OPTIONS preflight
-  OPT_CORS=$(curl -s -D - -o /dev/null -X OPTIONS "$API_URL/$endpoint" \
-    -H "Origin: $PROD_ORIGIN" \
-    -H "Access-Control-Request-Method: GET" \
-    2>&1 | grep -ci "access-control-allow-origin")
-
-  # Check actual response
-  RESP=$(curl -s -w "%{http_code}" "$API_URL/$endpoint" \
-    -H "Origin: $PROD_ORIGIN" -H "Authorization: Bearer $TOKEN")
-  STATUS=$(echo "$RESP" | tail -c 4)
-
-  # Check CORS on response
-  GET_CORS=$(curl -s -D - -o /dev/null "$API_URL/$endpoint" \
-    -H "Origin: $PROD_ORIGIN" -H "Authorization: Bearer $TOKEN" \
-    2>&1 | grep -ci "access-control-allow-origin")
-
-  echo "/$endpoint → Status: $STATUS | OPTIONS CORS: $([ $OPT_CORS -gt 0 ] && echo ✅ || echo ❌) | Response CORS: $([ $GET_CORS -gt 0 ] && echo ✅ || echo ❌)"
-done
-```
-
-**Every endpoint must show: Status 200, OPTIONS CORS ✅, Response CORS ✅**
-
-### 4.3 Frontend Deployment Check
-
-```markdown
-- [ ] No hardcoded localhost URLs: grep -rn "localhost" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules
-- [ ] Environment variables set in hosting platform (Vercel/Netlify)
-- [ ] Production deployment exists (not just Preview)
-- [ ] Production branch matches Git branch name
-- [ ] Auth callback URLs include production domain
-```
-
-### 4.4 Post-Deploy Browser Test (Incognito!)
-
-```markdown
-- [ ] Login page loads
-- [ ] Login succeeds with valid credentials
-- [ ] Main dashboard loads all data
-- [ ] Admin dashboard loads (if applicable)
-- [ ] Detail pages load (session detail, submission detail, etc.)
-- [ ] All sub-resources load (content, feedback, answers, etc.)
-- [ ] File downloads work
-- [ ] No errors in browser Console tab
-- [ ] No red entries in browser Network tab
-- [ ] Test in Chrome, Firefox, and Safari
-```
-
-### Production Readiness Result
-
-```markdown
-## Production Readiness: [Project Name]
-
-CORS Audit:
-- Lambda handlers: X/X have CORS ✅/❌
-- Event parameter: X/X correctly passed ✅/❌
-- API Gateway origin: Production URL included ✅/❌
-
-Endpoint Tests:
-| Endpoint | Status | OPTIONS CORS | Response CORS |
-|----------|--------|-------------|---------------|
-| /auth    | 200 ✅ | ✅          | ✅            |
-| /me      | 200 ✅ | ✅          | ✅            |
-[all endpoints]
-
-Frontend:
-- No hardcoded URLs ✅/❌
-- Env vars configured ✅/❌
-- Production deployment ✅/❌
-
-Browser Test:
-- Login works ✅/❌
-- Dashboard loads ✅/❌
-- Detail pages work ✅/❌
-- No console errors ✅/❌
-
-Result: ✅ READY FOR PRODUCTION / ❌ ISSUES FOUND
-```
+NO shortcuts. NO "I'll test it later."
 
 ## When to Use This Skill
 
@@ -600,8 +395,6 @@ Apply for ANY feature involving:
 - Data isolation requirements
 - Permission systems
 - User authentication/authorization
-- **Deploying to production for the first time** ⭐
-- **Adding new endpoints to an existing production app** ⭐
 
 Especially critical for:
 - Adding new user roles
@@ -609,7 +402,6 @@ Especially critical for:
 - Building multi-tenant features
 - Creating invitation systems
 - Any feature with "admin vs user" distinction
-- **Moving from localhost to a hosted frontend (Vercel, Netlify, CloudFront)** ⭐
 
 ## Template: Quick Start
 
@@ -673,35 +465,11 @@ Especially critical for:
 - Data isolation: Verified ✅
 - Result: PASS
 
-## Phase 4: Production Readiness ⭐ NEW
-
-### CORS Audit
-- All handlers have CORS: ✅/❌
-- Event passed to helpers: ✅/❌
-- API Gateway origin configured: ✅/❌
-
-### Endpoint Tests (with production Origin)
-- /auth: Status ___ | CORS ✅/❌
-- /me: Status ___ | CORS ✅/❌
-- [all endpoints]
-
-### Frontend
-- No hardcoded URLs: ✅/❌
-- Env vars set: ✅/❌
-- Production deploy: ✅/❌
-
-### Browser Test (Incognito)
-- Login: ✅/❌
-- Dashboard: ✅/❌
-- Detail pages: ✅/❌
-- No console errors: ✅/❌
-
 ## Final Checklist
 - [ ] Database ✅
 - [ ] Backend ✅
 - [ ] Frontend ✅
 - [ ] Integration ✅
-- [ ] Production Readiness ✅ ⭐ NEW
 - [ ] Documentation ✅
 
 Feature Status: ✅ COMPLETE
@@ -709,6 +477,146 @@ Feature Status: ✅ COMPLETE
 
 ---
 
-Remember: This skill exists because AI tends to skip verification. The systematic approach catches 90% of bugs before they become problems. Use it religiously.
+## Phase 4: Production Readiness Check (MANDATORY)
 
-**Production deployment reminder:** If you haven't tested every endpoint with `Origin: https://your-production-url` header, it's NOT production ready. Localhost testing ≠ production testing.
+**Localhost hides production bugs. This phase catches them BEFORE users do.**
+
+### 4.1 CORS Audit
+```bash
+# Every Lambda handler must have CORS on EVERY return statement
+for f in $(find lambda/functions -name "*.js" -not -path "*/node_modules/*"); do
+  RETURNS=$(grep -c "statusCode" "$f")
+  CORS=$(grep -c "getCorsHeaders\|Access-Control-Allow-Origin" "$f")
+  if [ "$RETURNS" -gt "$CORS" ]; then
+    echo "⚠️  $f: $RETURNS returns, only $CORS have CORS"
+  else
+    echo "✅ $f: $RETURNS returns, $CORS CORS"
+  fi
+done
+```
+
+### 4.2 Variable Scope Audit
+```bash
+# Check for event parameter bug (getCorsHeaders(event) in functions without event param)
+for f in $(find lambda/functions -name "*.js" -not -path "*/node_modules/*"); do
+  # Show all functions and their params
+  grep -n "async function\|function " "$f" | while read line; do
+    FUNC=$(echo "$line" | grep -oP "function \K\w+")
+    HAS_EVENT=$(echo "$line" | grep -c "event")
+    USES_CORS=$(grep -A 50 "$FUNC" "$f" | grep -c "getCorsHeaders(event)")
+    if [ "$USES_CORS" -gt 0 ] && [ "$HAS_EVENT" -eq 0 ]; then
+      echo "❌ $f: $FUNC() uses getCorsHeaders(event) but doesn't receive event"
+    fi
+  done
+done
+
+# Check for const inside try blocks used outside
+grep -n "const.*=.*await" lambda/functions/**/*.js | head -20
+# Manually verify each is not used outside its try block
+```
+
+### 4.3 Cognito-Database Sync Audit
+```bash
+# If signup/invitation flow exists, verify:
+grep -n "AdminCreateUser\|cognitoUserId\|User.Username" lambda/ -r --include="*.js"
+# Check: Is Cognito sub used as PostgreSQL user_id?
+# Check: Is UsernameExistsException handled?
+# Check: Is there rollback on database failure?
+```
+
+### 4.4 Localhost URL Audit
+```bash
+# CDK stack files
+grep -rn "localhost" lib/ --include="*.ts"
+
+# Lambda code
+grep -rn "localhost" lambda/ --include="*.js" --include="*.ts" | grep -v node_modules
+
+# Frontend (non-env)
+grep -rn "localhost" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".next" | grep -v ".env"
+```
+
+### 4.5 Password Policy Alignment
+```bash
+# Get Cognito policy
+aws cognito-idp describe-user-pool --user-pool-id $POOL_ID \
+  --query "UserPool.Policies.PasswordPolicy"
+
+# Compare with frontend validation
+grep -rn "password.*length\|minLength\|character" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules
+```
+
+### 4.6 Simulated Production Test
+```bash
+# Test every endpoint with production Origin header
+TOKEN=$(curl -s -X POST "$API_URL/auth" \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://your-app.vercel.app" \
+  -d '{"action":"login","email":"admin@example.com","password":"YOUR_PASSWORD"}' | jq -r '.idToken')
+
+for endpoint in me sessions overlays submissions; do
+  echo "--- /$endpoint ---"
+  curl -s -w "\nStatus: %{http_code}" "$API_URL/$endpoint" \
+    -H "Origin: https://your-app.vercel.app" \
+    -H "Authorization: Bearer $TOKEN"
+  echo ""
+done
+```
+
+### Phase 4 Checklist
+- [ ] Every Lambda return has CORS headers
+- [ ] Every helper function receiving `event` as parameter
+- [ ] No `const` inside try blocks used outside them
+- [ ] No localhost URLs in CDK or Lambda code
+- [ ] Cognito sub = PostgreSQL user_id
+- [ ] UsernameExistsException handled (orphan recovery)
+- [ ] Database failure triggers Cognito rollback
+- [ ] ON CONFLICT on all signup/invitation INSERTs
+- [ ] Frontend password rules match Cognito exactly
+- [ ] All endpoints tested with production Origin header
+
+---
+
+## Common Mistakes This Skill Prevents
+
+### 1. Missing CORS on Lambda responses (not just API Gateway)
+**Caught in:** Phase 4 - CORS audit
+**Why it's missed:** Localhost uses dev proxy, no CORS needed. Production enforces it.
+
+### 2. Variable scope: `const` inside try block used outside
+**Caught in:** Phase 4 - Variable scope audit
+**Example:** `const cognitoUserId = response.User.Username` inside try, used outside.
+**Fix:** Declare with `let` at function scope before try block.
+
+### 3. `event` parameter not passed to helper functions
+**Caught in:** Phase 4 - Variable scope audit
+**Example:** `getCorsHeaders(event)` in a function that doesn't receive `event`.
+**Fix:** Add `event` as last parameter to every helper function.
+
+### 4. Cognito sub ≠ PostgreSQL user_id
+**Caught in:** Phase 4 - Cognito-Database sync audit
+**Example:** Database auto-generates UUID instead of using Cognito's sub.
+**Fix:** Extract `createUserResponse.User.Username` and use as `user_id`.
+
+### 5. No rollback on multi-service operations
+**Caught in:** Phase 4 - Cognito-Database sync audit
+**Example:** Cognito user created but database INSERT fails → orphaned user.
+**Fix:** Wrap in try-catch, delete Cognito user on database failure.
+
+### 6. Password policy mismatch between frontend and Cognito
+**Caught in:** Phase 4 - Password policy alignment
+**Example:** Frontend says 8 chars, Cognito requires 12. User gets 500 error.
+**Fix:** Match frontend validation to Cognito policy exactly.
+
+### 7. CDK environment variables still set to localhost
+**Caught in:** Phase 4 - Localhost URL audit
+**Example:** `FRONTEND_URL: 'http://localhost:3000'` in CDK generates localhost invitation links.
+**Fix:** Grep for localhost in `lib/*.ts` before every deployment.
+
+### 8. Whack-a-mole fixing (fixing one handler at a time)
+**Caught in:** Phase 1 - Audit ALL before fixing ANY
+**Fix:** Always audit every handler, fix all at once, test all at once, then commit.
+
+---
+
+Remember: This skill exists because AI tends to skip verification AND because localhost hides production bugs. The systematic approach catches 90% of bugs before they become problems. Phase 4 catches the other 10% that only appear in production. Use it religiously.

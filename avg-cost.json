@@ -1,0 +1,1 @@
+{"statusCode":200,"body":"{\"success\":true,\"message\":\"Query executed successfully\",\"rowCount\":1,\"rows\":[{\"submissions_with_costs\":\"11\",\"avg_cost\":\"0.1663\",\"min_cost\":\"0.0441\",\"max_cost\":\"0.2401\",\"total_cost\":\"1.8297\"}]}"}

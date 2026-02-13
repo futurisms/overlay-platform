@@ -1,4 +1,4 @@
-# Platform State — v1.1 Stable (February 13, 2026)
+# Platform State — v1.8 Stable (February 13, 2026)
 
 ## Executive Summary
 
@@ -13,8 +13,8 @@ The Overlay Platform is a production AI-powered document analysis system that pr
 
 **Architecture**: Next.js frontend (Vercel) → AWS API Gateway → 22 Lambda functions → Aurora PostgreSQL + S3 + Cognito
 
-**Version**: v1.1 Stable
-**Git Tag**: `v1.1-stable`
+**Version**: v1.8 Stable
+**Git Tag**: `v1.8-stable`
 **Database Snapshot**: `overlay-v1-1-stable-20260213`
 **Production URL**: https://overlay-platform.vercel.app
 
@@ -672,7 +672,7 @@ npm run migrate:lambda
 **Git**:
 - Repository: https://github.com/futurisms/overlay-platform
 - Branch: `master`
-- Tags: `v1.0`, `v1.1-stable`
+- Tags: `v1.0`, `v1.8-stable`
 
 ---
 
@@ -950,12 +950,12 @@ git tag -a v1.2 -m "Version 1.2 description"
 git push origin v1.2
 
 # Restore from tag
-git checkout v1.1-stable
+git checkout v1.8-stable
 ```
 
 **Current Tags**:
 - `v1.0` - Initial production release
-- `v1.1-stable` - Current stable (5bf4d27)
+- `v1.8-stable` - Current stable (5bf4d27)
 
 **GitHub Repository**: https://github.com/futurisms/overlay-platform
 
@@ -965,7 +965,7 @@ git checkout v1.1-stable
 git clone https://github.com/futurisms/overlay-platform.git
 
 # 2. Checkout specific version
-git checkout v1.1-stable
+git checkout v1.8-stable
 
 # 3. Install dependencies
 npm install
@@ -999,7 +999,7 @@ aws s3 sync ./s3-backup/ s3://overlay-docs-975050116849 \
 
 ## Version History
 
-### v1.1 Stable (February 13, 2026)
+### v1.8 Stable (February 13, 2026)
 
 **Major Features**:
 - ✅ Password show/hide toggle on login

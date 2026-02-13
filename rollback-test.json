@@ -1,0 +1,1 @@
+{"statusCode":500,"body":"{\"success\":false,\"error\":\"Cannot read properties of undefined (reading 'length')\",\"stack\":\"TypeError: Cannot read properties of undefined (reading 'length')\\n    at exports.handler (/var/task/index.js:216:49)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\"}"}
