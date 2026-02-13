@@ -5,7 +5,7 @@
  * GET /submissions/{id}/annotate - Generate annotated document for a submission
  */
 
-const { createDbConnection, getDocumentWithAppendices } = require('/opt/nodejs/db-utils');
+const { createDbConnection, getDocumentWithAppendices, saveTokenUsage } = require('/opt/nodejs/db-utils');
 const { getCorsHeaders } = require('/opt/nodejs/cors');
 const { getClaudeClient } = require('/opt/nodejs/llm-client');
 const { canViewSubmission } = require('/opt/nodejs/permissions');
@@ -384,6 +384,16 @@ async function processAnnotationGeneration(event) {
       generationTime,
       annotationId
     ]);
+
+    // Save token usage for admin dashboard cost tracking
+    console.log('[Worker] Saving token usage to admin dashboard...');
+    await saveTokenUsage(dbClient, {
+      submissionId,
+      agentName: 'annotate-document',
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      modelName: response.model,
+    });
 
     console.log(`[Worker] Annotation generation completed successfully for ${submissionId}`);
 
