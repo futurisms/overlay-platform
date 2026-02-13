@@ -648,8 +648,8 @@ export default function SessionPage() {
           </Card>
         )}
 
-        {/* Evaluation Criteria Section */}
-        {session && (
+        {/* Evaluation Criteria Section - Admin Only */}
+        {session && isAdmin() && (
           <Card className="mb-8">
             <CardHeader>
               <div className="flex items-center justify-between">

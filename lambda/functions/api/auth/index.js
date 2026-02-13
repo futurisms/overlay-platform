@@ -8,6 +8,8 @@ const {
   AdminInitiateAuthCommand,
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 const { getCorsHeaders } = require('/opt/nodejs/cors');
@@ -43,13 +45,17 @@ exports.handler = async (event) => {
 };
 
 async function handleAuth(data, event) {
-  const { action, email, password, username } = data;
+  const { action, email, password, username, code, newPassword } = data;
 
   switch (action) {
     case 'login':
       return await login(email, password, event);
     case 'register':
       return await register(email, password, username, event);
+    case 'forgotPassword':
+      return await forgotPassword(email, event);
+    case 'confirmForgotPassword':
+      return await confirmForgotPassword(email, code, newPassword, event);
     default:
       return {
         statusCode: 400,
@@ -94,4 +100,64 @@ async function register(email, password, username, event) {
       error: 'User registration is admin-only. Please contact your administrator.',
     }),
   };
+}
+
+async function forgotPassword(email, event) {
+  try {
+    const command = new ForgotPasswordCommand({
+      ClientId: process.env.USER_POOL_CLIENT_ID,
+      Username: email,
+    });
+
+    await cognito.send(command);
+
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
+        success: true,
+        message: 'Password reset code sent to your email',
+      }),
+    };
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return {
+      statusCode: 400,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
+        error: error.message || 'Failed to send reset code',
+      }),
+    };
+  }
+}
+
+async function confirmForgotPassword(email, code, newPassword, event) {
+  try {
+    const command = new ConfirmForgotPasswordCommand({
+      ClientId: process.env.USER_POOL_CLIENT_ID,
+      Username: email,
+      ConfirmationCode: code,
+      Password: newPassword,
+    });
+
+    await cognito.send(command);
+
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
+        success: true,
+        message: 'Password reset successfully',
+      }),
+    };
+  } catch (error) {
+    console.error('Confirm forgot password error:', error);
+    return {
+      statusCode: 400,
+      headers: getCorsHeaders(event),
+      body: JSON.stringify({
+        error: error.message || 'Failed to reset password',
+      }),
+    };
+  }
 }

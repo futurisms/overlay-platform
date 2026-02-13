@@ -109,3 +109,95 @@ export function saveUserInfo(userInfo: any) {
     localStorage.setItem('user_info', JSON.stringify(userInfo));
   }
 }
+
+interface ForgotPasswordResult {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
+export async function forgotPassword(email: string): Promise<ForgotPasswordResult> {
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+    const url = `${API_BASE_URL}/auth`;
+
+    const payload = {
+      action: 'forgotPassword',
+      email,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || 'Failed to send reset code',
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message || 'Password reset code sent to your email',
+    };
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error',
+    };
+  }
+}
+
+export async function confirmForgotPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<ForgotPasswordResult> {
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+    const url = `${API_BASE_URL}/auth`;
+
+    const payload = {
+      action: 'confirmForgotPassword',
+      email,
+      code,
+      newPassword,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || 'Failed to reset password',
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message || 'Password reset successfully',
+    };
+  } catch (error) {
+    console.error('Confirm forgot password error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error',
+    };
+  }
+}

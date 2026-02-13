@@ -42,6 +42,18 @@ async function handleGet(dbClient, pathParameters, userId, event) {
   const overlayId = pathParameters?.overlayId || pathParameters?.id;
 
   if (overlayId) {
+    // Check permissions - only admins can view detailed criteria
+    const userQuery = await dbClient.query('SELECT user_id, user_role FROM users WHERE user_id = $1', [userId]);
+    const user = userQuery.rows[0];
+
+    if (!user) {
+      return { statusCode: 404, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'User not found' }) };
+    }
+
+    if (!canEdit(user)) {
+      return { statusCode: 403, headers: getCorsHeaders(event), body: JSON.stringify({ error: 'Forbidden: Only admins can view evaluation criteria' }) };
+    }
+
     // Get specific overlay with criteria
     const overlayQuery = `
       SELECT
