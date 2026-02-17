@@ -1,0 +1,89 @@
+OVERLAY CRITERIA IMPORT FORMAT
+================================
+
+This file demonstrates the expected DOCX format for importing overlays.
+Copy this content into a Word document (.docx) to test the import feature.
+
+---
+
+OVERLAY CRITERIA
+Question 10 -- Team and Resources: Capability and Capacity
+
+INTELLIGENCE TEMPLATE DETAILS
+
+**Overlay Name:** Question 10 -- Team and Resources
+
+**Description:** Evaluates the suitability, capability, and capacity of the team responsible for delivering the project.
+
+**Document Type:** Grant Application Response
+
+**Document Purpose:** To demonstrate that the project team has the necessary expertise, experience, and resources to successfully deliver the proposed project outcomes within the specified timeframe and budget.
+
+**When Used:** During the initial application assessment phase and competitive evaluation of grant proposals.
+
+**Process Context:** This overlay is applied to Question 10 responses in grant applications where applicants must demonstrate their team's capabilities. Reviewers use this criteria to assess whether the proposed team has sufficient depth of expertise, appropriate qualifications, and adequate resources to execute the project plan successfully.
+
+**Target Audience:** Grant assessment evaluators and panel reviewers
+
+EVALUATION CRITERIA
+
+**Title:** Question 10 -- Team and Resources
+
+**Type:** qualitative
+
+SECTION TO EVALUATE
+The applicant's response to Question 10: Team and Resources, which should include:
+- Details of key team members and their roles
+- Relevant qualifications, experience, and expertise
+- Organizational capacity and infrastructure
+- Resource allocation and availability
+- Risk mitigation strategies for team-related issues
+
+WHAT MUST BE ADDRESSED
+• Clear identification of key personnel with defined roles and responsibilities
+• Evidence of relevant qualifications and demonstrated experience in similar projects
+• Organizational capability to support the project (infrastructure, systems, processes)
+• Adequate allocation of time and resources from team members
+• Depth of expertise across all critical project areas
+• Evidence of team collaboration and track record of successful delivery
+• Contingency planning for staff turnover or unavailability
+
+CRITICAL CONCEPTS
+• Team capability: The skills, knowledge, and expertise required to deliver project outcomes
+• Team capacity: The availability and allocation of sufficient time and resources
+• Organizational infrastructure: Systems, processes, and support structures enabling project delivery
+• Track record: Demonstrated history of successful project delivery in relevant contexts
+• Risk management: Strategies to mitigate team-related risks (e.g., turnover, availability)
+
+SCORING RUBRIC
+
+**EXCELLENT (0.81 - 1.00)**
+Comprehensive demonstration of exceptional team capability and capacity. All key roles clearly defined with highly qualified personnel who have extensive, directly relevant experience. Strong evidence of organizational infrastructure and robust systems to support delivery. Team members have demonstrable track record of successful delivery in highly similar contexts. Detailed, realistic resource allocation with significant contingency planning. The response inspires complete confidence in the team's ability to deliver.
+
+**GOOD (0.61 - 0.80)**
+Strong demonstration of team capability and capacity with most key roles well-defined. Team members have relevant qualifications and good experience, though some gaps may exist in direct relevance. Organizational infrastructure is adequate with clear support systems. Good track record of delivery in related contexts. Resource allocation is realistic with some contingency measures identified. The response provides substantial confidence in the team's ability to deliver.
+
+**ADEQUATE (0.41 - 0.60)**
+Satisfactory demonstration of basic team capability and capacity. Key roles are identified, and team members have relevant qualifications, though experience may be less directly applicable. Organizational infrastructure is present but may lack detail or robustness. Some evidence of previous delivery, though not necessarily in closely related contexts. Resource allocation is outlined but may lack detail or appear optimistic. The response suggests the team should be able to deliver with reasonable support.
+
+**WEAK (0.21 - 0.40)**
+Limited demonstration of team capability or capacity. Key roles may be unclear or gaps exist in critical areas. Team members have some relevant qualifications, but experience is limited or not clearly demonstrated. Organizational infrastructure is vague or underdeveloped. Little evidence of track record in relevant contexts. Resource allocation is unclear, appears insufficient, or lacks realism. The response raises concerns about the team's ability to deliver.
+
+**UNACCEPTABLE (0.00 - 0.20)**
+Inadequate demonstration of team capability or capacity. Key roles undefined or missing, team members lack relevant qualifications or experience, organizational infrastructure absent or highly questionable. No evidence of track record in relevant contexts. Resource allocation missing, clearly insufficient, or unrealistic. The response provides no confidence in the team's ability to deliver the project successfully.
+
+**Weight:** 1
+
+**Max Score:** 1.00
+
+---
+
+NOTES FOR TESTING:
+1. Save this content to a Word document (.docx format)
+2. Use "Import from DOCX" button on Intelligence Setup page
+3. The parser will extract:
+   - Overlay metadata (name, description, document type, etc.)
+   - Criteria details (title, type, scoring rubric, weight, max score)
+   - Full criteria description including all sections
+4. Review and edit in the preview dialog before creating
+5. Click "Create Overlay" to import into the database

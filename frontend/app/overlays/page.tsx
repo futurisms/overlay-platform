@@ -6,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, FileText, Plus, Edit, ArrowLeft, Trash2 } from "lucide-react";
+import { Loader2, FileText, Plus, Edit, ArrowLeft, Trash2, Upload } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ImportOverlayDialog } from "@/components/overlays/ImportOverlayDialog";
 
 interface Overlay {
   overlay_id: string;
@@ -30,6 +31,7 @@ export default function OverlaysPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [overlayToDelete, setOverlayToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     // Check authentication
@@ -133,10 +135,16 @@ export default function OverlaysPage() {
                 Manage document evaluation intelligence templates and criteria
               </p>
             </div>
-            <Button onClick={handleCreateNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Intelligence Template
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import from DOCX
+              </Button>
+              <Button onClick={handleCreateNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Intelligence Template
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -241,6 +249,13 @@ export default function OverlaysPage() {
           onConfirm={handleDeleteConfirm}
           variant="destructive"
           isLoading={false}
+        />
+
+        {/* Import Overlay Dialog */}
+        <ImportOverlayDialog
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
+          onSuccess={loadOverlays}
         />
       </div>
     </div>
