@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, FileText, Plus, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Overlay {
   overlay_id: string;
@@ -27,6 +28,8 @@ export default function OverlaysPage() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [overlayToDelete, setOverlayToDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     // Check authentication
@@ -69,30 +72,34 @@ export default function OverlaysPage() {
     router.push("/overlays/new");
   };
 
-  const handleDeleteOverlay = async (overlayId: string, e: React.MouseEvent) => {
+  const handleDeleteOverlay = (overlayId: string, overlayName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setOverlayToDelete({ id: overlayId, name: overlayName });
+    setShowDeleteDialog(true);
+  };
 
-    if (!confirm("Are you sure you want to delete this overlay? This action cannot be undone.")) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!overlayToDelete) return;
 
-    setIsDeleting(overlayId);
+    setShowDeleteDialog(false);
+    setIsDeleting(overlayToDelete.id);
     setError(null);
 
     try {
-      const result = await apiClient.deleteOverlay(overlayId);
+      const result = await apiClient.deleteOverlay(overlayToDelete.id);
 
       if (result.error) {
         setError(result.error);
       } else {
         // Remove from list
-        setOverlays(overlays.filter(o => o.overlay_id !== overlayId));
+        setOverlays(overlays.filter(o => o.overlay_id !== overlayToDelete.id));
       }
     } catch (err) {
       setError("Failed to delete overlay. It may be in use by active sessions.");
       console.error(err);
     } finally {
       setIsDeleting(null);
+      setOverlayToDelete(null);
     }
   };
 
@@ -175,7 +182,7 @@ export default function OverlaysPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => handleDeleteOverlay(overlay.overlay_id, e)}
+                        onClick={(e) => handleDeleteOverlay(overlay.overlay_id, overlay.name, e)}
                         disabled={isDeleting === overlay.overlay_id}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
@@ -222,6 +229,19 @@ export default function OverlaysPage() {
             ))
           )}
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          title={`Delete "${overlayToDelete?.name}"?`}
+          description="This will permanently delete the overlay template and all its evaluation criteria. This action cannot be undone."
+          confirmText="Delete Overlay"
+          cancelText="Cancel"
+          onConfirm={handleDeleteConfirm}
+          variant="destructive"
+          isLoading={false}
+        />
       </div>
     </div>
   );

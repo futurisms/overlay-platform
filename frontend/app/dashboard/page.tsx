@@ -20,6 +20,7 @@ import {
 import { Loader2, Calendar, Users, FileText, LogOut, Upload, Settings, Trash2, Plus, Pencil, BarChart3 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser, logout } from "@/lib/auth";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Session {
   session_id: string;
@@ -46,6 +47,8 @@ export default function DashboardPage() {
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false);
   const [showQuickUploadDialog, setShowQuickUploadDialog] = useState(false);
   const [showEditSessionDialog, setShowEditSessionDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editSessionData, setEditSessionData] = useState({ name: "", description: "", project_name: "" });
   const [isUpdating, setIsUpdating] = useState(false);
@@ -142,27 +145,32 @@ export default function DashboardPage() {
     router.push(`/session/${sessionId}`);
   };
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+  const handleDeleteSession = (sessionId: string, sessionName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setSessionToDelete({ id: sessionId, name: sessionName });
+    setShowDeleteDialog(true);
+  };
 
-    if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!sessionToDelete) return;
 
-    setIsDeleting(sessionId);
+    setShowDeleteDialog(false);
+    setIsDeleting(sessionToDelete.id);
+
     try {
-      const result = await apiClient.deleteSession(sessionId);
+      const result = await apiClient.deleteSession(sessionToDelete.id);
       if (result.error) {
         setError(result.error);
       } else {
         // Remove from list
-        setSessions(sessions.filter(s => s.session_id !== sessionId));
+        setSessions(sessions.filter(s => s.session_id !== sessionToDelete.id));
       }
     } catch (err) {
       setError("Failed to delete session");
       console.error(err);
     } finally {
       setIsDeleting(null);
+      setSessionToDelete(null);
     }
   };
 
@@ -454,7 +462,7 @@ export default function DashboardPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={(e) => handleDeleteSession(session.session_id, e)}
+                                onClick={(e) => handleDeleteSession(session.session_id, session.name, e)}
                                 disabled={isDeleting === session.session_id}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
@@ -801,6 +809,19 @@ export default function DashboardPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          title={`Delete "${sessionToDelete?.name}"?`}
+          description="This will permanently delete the session and all associated data. This action cannot be undone."
+          confirmText="Delete Session"
+          cancelText="Cancel"
+          onConfirm={handleDeleteConfirm}
+          variant="destructive"
+          isLoading={false}
+        />
       </div>
     </div>
   );

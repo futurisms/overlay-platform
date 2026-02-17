@@ -83,8 +83,15 @@ const server = http.createServer((req, res) => {
         console.log('>>> DELETE Response Status:', proxyRes.statusCode);
       }
 
-      // Forward status code
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      // Filter out CORS headers from API Gateway to keep proxy's CORS headers
+      const filteredHeaders = { ...proxyRes.headers };
+      delete filteredHeaders['access-control-allow-origin'];
+      delete filteredHeaders['access-control-allow-methods'];
+      delete filteredHeaders['access-control-allow-headers'];
+      delete filteredHeaders['access-control-allow-credentials'];
+
+      // Forward status code and filtered headers
+      res.writeHead(proxyRes.statusCode, filteredHeaders);
 
       // Forward response body
       proxyRes.pipe(res);

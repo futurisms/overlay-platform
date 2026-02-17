@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ArrowLeft, Plus, Edit, Trash2, Save } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getCurrentUser } from "@/lib/auth";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Criterion {
   criteria_id: string;
@@ -62,6 +63,10 @@ export default function EditOverlayPage() {
   // Edit criterion state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+
+  // Delete confirmation state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [criterionToDelete, setCriterionToDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -188,16 +193,20 @@ export default function EditOverlayPage() {
     }
   };
 
-  const handleDeleteCriterion = async (criterionId: string) => {
-    if (!confirm("Are you sure you want to delete this criterion?")) {
-      return;
-    }
+  const handleDeleteCriterion = (criterionId: string, criterionName: string) => {
+    setCriterionToDelete({ id: criterionId, name: criterionName });
+    setShowDeleteDialog(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!criterionToDelete) return;
+
+    setShowDeleteDialog(false);
     setError(null);
     setSuccess(null);
 
     try {
-      const updatedCriteria = criteria.filter((c) => c.criteria_id !== criterionId);
+      const updatedCriteria = criteria.filter((c) => c.criteria_id !== criterionToDelete.id);
 
       const result = await apiClient.updateOverlay(overlayId, {
         criteria: updatedCriteria,
@@ -212,6 +221,8 @@ export default function EditOverlayPage() {
     } catch (err) {
       setError("Failed to delete criterion");
       console.error(err);
+    } finally {
+      setCriterionToDelete(null);
     }
   };
 
@@ -537,7 +548,7 @@ export default function EditOverlayPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteCriterion(criterion.criteria_id)}
+                              onClick={() => handleDeleteCriterion(criterion.criteria_id, criterion.name)}
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
@@ -551,6 +562,19 @@ export default function EditOverlayPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          title={`Delete "${criterionToDelete?.name}"?`}
+          description="This will permanently delete this evaluation criterion from the template. This action cannot be undone."
+          confirmText="Delete Criterion"
+          cancelText="Cancel"
+          onConfirm={handleDeleteConfirm}
+          variant="destructive"
+          isLoading={false}
+        />
       </div>
     </div>
   );
