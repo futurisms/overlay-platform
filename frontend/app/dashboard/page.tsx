@@ -71,6 +71,10 @@ export default function DashboardPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
 
+  // Pagination state
+  const SESSIONS_PER_PAGE = 6;
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
     // Check authentication
     const currentUser = getCurrentUser();
@@ -101,6 +105,11 @@ export default function DashboardPage() {
 
     setProjects(['All', 'Uncategorized', ...uniqueProjects.sort()]);
   }, [sessions]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProject]);
 
   const loadSessions = async () => {
     setIsLoading(true);
@@ -341,6 +350,14 @@ export default function DashboardPage() {
     ? sessions.filter(s => !s.project_name)
     : sessions.filter(s => s.project_name === selectedProject);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredSessions.length / SESSIONS_PER_PAGE);
+  const startIndex = (currentPage - 1) * SESSIONS_PER_PAGE;
+  const endIndex = startIndex + SESSIONS_PER_PAGE;
+  const paginatedSessions = filteredSessions.slice(startIndex, endIndex);
+  const showingFrom = filteredSessions.length > 0 ? startIndex + 1 : 0;
+  const showingTo = Math.min(endIndex, filteredSessions.length);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto p-6 max-w-7xl">
@@ -425,8 +442,9 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredSessions.map((session) => (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {paginatedSessions.map((session) => (
                   <Card
                     key={session.session_id}
                     className="cursor-pointer hover:border-blue-500 transition-colors"
@@ -498,7 +516,66 @@ export default function DashboardPage() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <div className="text-sm text-slate-600 dark:text-slate-400">
+                      Showing {showingFrom}-{showingTo} of {filteredSessions.length} sessions
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                          // Show first page, last page, current page, and pages around current
+                          if (
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1)
+                          ) {
+                            return (
+                              <Button
+                                key={page}
+                                variant={currentPage === page ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(page)}
+                                className="w-10"
+                              >
+                                {page}
+                              </Button>
+                            );
+                          } else if (page === currentPage - 2 || page === currentPage + 2) {
+                            return (
+                              <span key={page} className="px-2 text-slate-400">
+                                ...
+                              </span>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -68,14 +68,24 @@ export async function parseOverlayDocx(file: File): Promise<ParsedOverlayData> {
   // Parse criteria
   const criteria: ParsedCriterion[] = [];
 
-  // Extract criterion metadata
-  const criterionName = extractFieldBetween(text, 'Title:', ['Type:', 'SECTION TO EVALUATE']) || '';
-  const criterionType = extractFieldBetween(text, 'Type:', ['SECTION TO EVALUATE', 'Weight:']) || 'general';
-  const weight = parseFloat(extractFieldBetween(text, 'Weight:', ['Max Score:']) || '1') || 1;
-  const maxScore = parseFloat(extractFieldBetween(text, 'Max Score:', ['NOTES FOR TESTING', '---']) || '1') || 1;
+  // Extract ONLY the EVALUATION CRITERIA section to avoid parsing overlay metadata
+  const criteriaStartIndex = text.indexOf('EVALUATION CRITERIA');
+  if (criteriaStartIndex === -1) {
+    console.warn('EVALUATION CRITERIA section not found');
+    return { overlay, criteria };
+  }
+
+  // Work with only the criteria section text
+  const criteriaText = text.substring(criteriaStartIndex);
+
+  // Extract criterion metadata from the criteria section only
+  const criterionName = extractFieldBetween(criteriaText, 'Title:', ['Type:', 'SECTION TO EVALUATE']) || '';
+  const criterionType = extractFieldBetween(criteriaText, 'Type:', ['SECTION TO EVALUATE', 'Weight:']) || 'text';
+  const weight = parseFloat(extractFieldBetween(criteriaText, 'Weight:', ['Max Score:']) || '1') || 1;
+  const maxScore = parseFloat(extractFieldBetween(criteriaText, 'Max Score:', ['NOTES FOR TESTING', '---']) || '1') || 1;
 
   // Extract full criteria description (everything from SECTION TO EVALUATE through SCORING RUBRIC)
-  const criteriaDescription = extractCriteriaBody(text);
+  const criteriaDescription = extractCriteriaBody(criteriaText);
 
   if (criterionName) {
     criteria.push({
