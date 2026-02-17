@@ -324,7 +324,7 @@ export class ComputeStack extends cdk.Stack {
       layers: [commonLayer],
       environment: {
         ...commonEnvironment,
-        FRONTEND_URL: 'https://overlay-platform.vercel.app',
+        FRONTEND_URL: 'https://overlay.futurisms.ai',
         USER_POOL_ID: props.userPool.userPoolId,
       },
       description: 'Handles analyst invitation system',
@@ -503,9 +503,11 @@ export class ComputeStack extends cdk.Stack {
       },
       defaultCorsPreflightOptions: {
         allowOrigins: [
-          'http://localhost:3000', // Local development
+          'https://overlay.futurisms.ai', // Production custom domain
           'https://overlay-platform.vercel.app', // Vercel production
           'https://overlay-platform-git-master-satnams-projects-7193fd93.vercel.app', // Vercel git branch
+          'http://localhost:3000', // Local development
+          'http://localhost:3002', // Local development (alternate port)
         ],
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: [

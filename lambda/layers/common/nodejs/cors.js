@@ -4,9 +4,11 @@
  */
 
 const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'https://overlay-platform.vercel.app',
-  'https://overlay-platform-git-master-satnams-projects-7193fd93.vercel.app',
+  'https://overlay.futurisms.ai', // Production custom domain
+  'https://overlay-platform.vercel.app', // Vercel production
+  'https://overlay-platform-git-master-satnams-projects-7193fd93.vercel.app', // Vercel git branch
+  'http://localhost:3000', // Local development
+  'http://localhost:3002', // Local development (alternate port)
 ];
 
 /**
