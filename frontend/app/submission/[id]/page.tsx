@@ -68,7 +68,6 @@ export default function SubmissionPage() {
   const [annotation, setAnnotation] = useState<any>(null);
   const [isLoadingAnnotation, setIsLoadingAnnotation] = useState(false);
   const [hasAttemptedAnnotation, setHasAttemptedAnnotation] = useState(false);
-  const [initialDocumentName, setInitialDocumentName] = useState<string>("");
 
   useEffect(() => {
     // Check authentication
@@ -136,10 +135,6 @@ export default function SubmissionPage() {
         setError(submissionResult.error);
       } else if (submissionResult.data) {
         setSubmission(submissionResult.data);
-        // Preserve initial document name on first load
-        if (!initialDocumentName && submissionResult.data.document_name) {
-          setInitialDocumentName(submissionResult.data.document_name);
-        }
       }
 
       if (feedbackResult.data) {
@@ -455,7 +450,7 @@ export default function SubmissionPage() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-                {initialDocumentName || submission.document_name}
+                {submission.session_name || submission.document_name}
               </h1>
               <p className="text-slate-600 dark:text-slate-400 mb-4">
                 Submitted on {new Date(submission.submitted_at).toLocaleString()}

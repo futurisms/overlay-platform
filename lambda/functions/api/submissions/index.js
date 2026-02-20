@@ -76,10 +76,12 @@ async function handleGet(dbClient, pathParameters, userId, event) {
              s.submitted_at, s.ai_analysis_completed_at, s.submitted_by,
              s.s3_key, s.s3_bucket, s.appendix_files,
              u.first_name || ' ' || u.last_name as submitted_by_name,
-             o.name as overlay_name
+             o.name as overlay_name,
+             rs.name as session_name
       FROM document_submissions s
       LEFT JOIN users u ON s.submitted_by = u.user_id
       LEFT JOIN overlays o ON s.overlay_id = o.overlay_id
+      LEFT JOIN review_sessions rs ON s.session_id = rs.session_id
       WHERE s.submission_id = $1
     `;
     const result = await dbClient.query(query, [submissionId]);
