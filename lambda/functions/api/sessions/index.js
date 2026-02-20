@@ -101,7 +101,7 @@ async function handleGet(dbClient, pathParameters, userId, event) {
              ds.submitted_at, u.first_name || ' ' || u.last_name as submitted_by_name,
              (
                SELECT ROUND(COALESCE(
-                 (content::jsonb->'scores'->>'average')::numeric,
+                 (content::jsonb->'scores'->>'content')::numeric,
                  (content::jsonb->>'overall_score')::numeric
                ), 0)
                FROM feedback_reports
@@ -199,7 +199,7 @@ async function handleGetSessionSubmissions(dbClient, pathParameters, userId, eve
            ds.submitted_at, u.first_name || ' ' || u.last_name as submitted_by_name,
            (
              SELECT ROUND(COALESCE(
-               (content::jsonb->'scores'->>'average')::numeric,
+               (content::jsonb->'scores'->>'content')::numeric,
                (content::jsonb->>'overall_score')::numeric
              ), 0)
              FROM feedback_reports
