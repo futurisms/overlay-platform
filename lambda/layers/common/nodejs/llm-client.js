@@ -86,6 +86,22 @@ async function getClaudeClient() {
         }],
       });
 
+      // Validate response structure before accessing
+      if (!response.content || !Array.isArray(response.content) || response.content.length === 0) {
+        console.error('Claude API returned unexpected response structure:', JSON.stringify(response, null, 2));
+        throw new Error(`Claude API returned empty or invalid content array. Response: ${JSON.stringify({
+          id: response.id,
+          model: response.model,
+          stop_reason: response.stop_reason,
+          content_length: response.content?.length || 0
+        })}`);
+      }
+
+      if (!response.content[0].text) {
+        console.error('Claude API content block missing text:', JSON.stringify(response.content[0], null, 2));
+        throw new Error(`Claude API content block does not contain text. Type: ${response.content[0].type}`);
+      }
+
       // Return structured response with text, usage, and model info
       // ⚠️ BREAKING CHANGE: Previously returned string, now returns object
       return {

@@ -32,6 +32,7 @@ export class ComputeStack extends cdk.Stack {
   public readonly orchestratorFunction: lambda.Function;
   public readonly clarificationFunction: lambda.Function;
   public readonly scoringFunction: lambda.Function;
+  public readonly analysisFailureHandler: lambda.Function;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -191,6 +192,27 @@ export class ComputeStack extends cdk.Stack {
       description: 'Calculates final scores and generates feedback using Claude Sonnet',
       logRetention: logs.RetentionDays.ONE_MONTH,
     });
+
+    // 7. Analysis Failure Handler (Database update on workflow failure)
+    this.analysisFailureHandler = new lambda.Function(this, 'AnalysisFailureHandler', {
+      functionName: 'overlay-analysis-failure-handler',
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/functions/analysis-failure-handler'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSG],
+      environment: {
+        ...commonEnvironment,
+      },
+      description: 'Updates submission status when Step Functions execution fails',
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    // Grant database secret access to failure handler (network access already allowed via VPC)
+    props.auroraSecret.grantRead(this.analysisFailureHandler);
 
     // ==========================================================================
     // API LAMBDA FUNCTIONS

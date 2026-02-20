@@ -68,6 +68,7 @@ export default function SubmissionPage() {
   const [annotation, setAnnotation] = useState<any>(null);
   const [isLoadingAnnotation, setIsLoadingAnnotation] = useState(false);
   const [hasAttemptedAnnotation, setHasAttemptedAnnotation] = useState(false);
+  const [initialDocumentName, setInitialDocumentName] = useState<string>("");
 
   useEffect(() => {
     // Check authentication
@@ -82,20 +83,42 @@ export default function SubmissionPage() {
     }
   }, [submissionId, router]);
 
+  // Check if submission is stale (pending for more than 10 minutes)
+  const isStale = useMemo(() => {
+    if (!submission || submission.ai_analysis_status !== "pending") {
+      return false;
+    }
+    const submittedAt = new Date(submission.submitted_at);
+    const now = new Date();
+    const minutesElapsed = (now.getTime() - submittedAt.getTime()) / (1000 * 60);
+    return minutesElapsed > 10;
+  }, [submission?.submitted_at, submission?.ai_analysis_status]);
+
   // Auto-refresh when analysis is in progress
   useEffect(() => {
-    if (!submission || submission.ai_analysis_status === "completed") {
+    if (!submission) return;
+
+    // Don't poll if stale
+    if (isStale) {
       return;
     }
 
-    // Poll every 10 seconds when analysis is not completed
+    // Only poll when pending or in_progress
+    const shouldPoll = submission.ai_analysis_status === "pending" ||
+                       submission.ai_analysis_status === "in_progress";
+
+    if (!shouldPoll) {
+      return;
+    }
+
+    // Poll every 10 seconds when analysis is in progress
     const intervalId = setInterval(() => {
       console.log("Auto-refreshing submission data...");
       loadSubmissionData();
     }, 10000);
 
     return () => clearInterval(intervalId);
-  }, [submission?.ai_analysis_status]);
+  }, [submission?.ai_analysis_status, isStale]);
 
   const loadSubmissionData = async () => {
     setIsLoading(true);
@@ -113,6 +136,10 @@ export default function SubmissionPage() {
         setError(submissionResult.error);
       } else if (submissionResult.data) {
         setSubmission(submissionResult.data);
+        // Preserve initial document name on first load
+        if (!initialDocumentName && submissionResult.data.document_name) {
+          setInitialDocumentName(submissionResult.data.document_name);
+        }
       }
 
       if (feedbackResult.data) {
@@ -428,7 +455,7 @@ export default function SubmissionPage() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-                {submission.document_name}
+                {initialDocumentName || submission.document_name}
               </h1>
               <p className="text-slate-600 dark:text-slate-400 mb-4">
                 Submitted on {new Date(submission.submitted_at).toLocaleString()}
@@ -528,8 +555,28 @@ export default function SubmissionPage() {
           </CardContent>
         </Card>
 
-        {/* AI Analysis Status */}
-        {submission.ai_analysis_status !== "completed" && (
+        {/* AI Analysis Status - Stale (pending for > 10 minutes) */}
+        {isStale && (
+          <Alert className="mb-6 border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <AlertTitle className="text-yellow-900 dark:text-yellow-100 mb-2">Analysis Timeout</AlertTitle>
+                <AlertDescription>
+                  <p className="mb-2 text-yellow-800 dark:text-yellow-200">
+                    This submission has been pending for more than 10 minutes, which suggests the workflow may have failed to start.
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    Please contact support or try re-submitting your document.
+                  </p>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
+        {/* AI Analysis Status - In Progress or Pending */}
+        {!isStale && (submission.ai_analysis_status === "pending" || submission.ai_analysis_status === "in_progress") && (
           <Alert className="mb-6 border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
             <div className="flex items-start gap-3">
               <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5 flex-shrink-0" />
@@ -537,9 +584,7 @@ export default function SubmissionPage() {
                 <AlertTitle className="text-blue-900 dark:text-blue-100 mb-2">
                   {submission.ai_analysis_status === "in_progress"
                     ? "🤖 AI Analysis in Progress"
-                    : submission.ai_analysis_status === "pending"
-                    ? "⏳ Preparing Analysis"
-                    : "Analysis Status"}
+                    : "⏳ Preparing Analysis"}
                 </AlertTitle>
                 <AlertDescription>
                   {submission.ai_analysis_status === "in_progress" ? (
@@ -557,7 +602,7 @@ export default function SubmissionPage() {
                         You can safely close this page. Analysis will continue in the background.
                       </p>
                     </div>
-                  ) : submission.ai_analysis_status === "pending" ? (
+                  ) : (
                     <div className="space-y-2">
                       <p className="text-blue-800 dark:text-blue-200">
                         Your document is queued for AI analysis. Starting shortly...
@@ -569,9 +614,32 @@ export default function SubmissionPage() {
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    <p>Analysis status: {submission.ai_analysis_status}</p>
                   )}
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
+        {/* AI Analysis Failed */}
+        {submission.ai_analysis_status === "failed" && (
+          <Alert className="mb-6 border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20" variant="destructive">
+            <div className="flex items-start gap-3">
+              <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <AlertTitle className="mb-2">Analysis Failed</AlertTitle>
+                <AlertDescription>
+                  <p className="mb-2">
+                    The AI analysis encountered an error and could not complete. This may be due to:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm ml-2">
+                    <li>Unexpected document format</li>
+                    <li>Temporary service unavailability</li>
+                    <li>Processing timeout</li>
+                  </ul>
+                  <p className="mt-3 text-sm font-medium">
+                    You can try submitting the document again from the session page.
+                  </p>
                 </AlertDescription>
               </div>
             </div>

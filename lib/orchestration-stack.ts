@@ -19,6 +19,7 @@ export interface OrchestrationStackProps extends cdk.StackProps {
   readonly orchestratorFunction: lambda.IFunction;
   readonly clarificationFunction: lambda.IFunction;
   readonly scoringFunction: lambda.IFunction;
+  readonly analysisFailureHandler: lambda.IFunction;
 }
 
 export class OrchestrationStack extends cdk.Stack {
@@ -339,7 +340,10 @@ export class OrchestrationStack extends cdk.Stack {
       },
     });
 
-    // Send failed executions to SQS for retry
+    // Send failed executions to Lambda handler to update database status
+    failedExecutionRule.addTarget(new targets.LambdaFunction(props.analysisFailureHandler));
+
+    // Also send to SQS for retry/monitoring
     failedExecutionRule.addTarget(new targets.SqsQueue(this.processingQueue));
 
     // Rule for successful executions

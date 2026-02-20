@@ -1,0 +1,9 @@
+{
+  "name": "analysis-failure-handler",
+  "version": "1.0.0",
+  "description": "Handles Step Functions execution failures by updating submission status",
+  "main": "index.js",
+  "dependencies": {
+    "pg": "^8.11.0"
+  }
+}

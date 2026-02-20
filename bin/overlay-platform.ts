@@ -85,6 +85,7 @@ const orchestrationStack = new OrchestrationStack(app, 'OverlayOrchestrationStac
   orchestratorFunction: computeStack.orchestratorFunction,
   clarificationFunction: computeStack.clarificationFunction,
   scoringFunction: computeStack.scoringFunction,
+  analysisFailureHandler: computeStack.analysisFailureHandler,
   description: 'Overlay Platform - Orchestration infrastructure (Step Functions, EventBridge)',
   tags: {
     Project: 'Overlay',
