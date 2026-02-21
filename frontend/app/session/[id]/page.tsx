@@ -94,6 +94,8 @@ export default function SessionPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successSubmissionId, setSuccessSubmissionId] = useState<string | null>(null);
   const [successDocumentName, setSuccessDocumentName] = useState<string>("");
+  const [dialogAnalysisStatus, setDialogAnalysisStatus] = useState<string>("pending");
+  const [dialogScore, setDialogScore] = useState<number | null>(null);
   const [appendixFiles, setAppendixFiles] = useState<File[]>([]);
   const [appendixError, setAppendixError] = useState<string | null>(null);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<string | null>(null);
@@ -131,6 +133,51 @@ export default function SessionPage() {
       loadSessionData();
     }
   }, [sessionId, router]);
+
+  // Poll submission status in success dialog
+  useEffect(() => {
+    if (!successSubmissionId || !showSuccessDialog) {
+      return;
+    }
+
+    console.log('[Dialog Poll] Starting to poll submission:', successSubmissionId);
+
+    const pollSubmission = async () => {
+      try {
+        const response = await apiClient.getSubmission(successSubmissionId);
+        if (response.data) {
+          const status = response.data.ai_analysis_status;
+          console.log('[Dialog Poll] Status:', status);
+          setDialogAnalysisStatus(status);
+
+          // If completed, fetch the score from feedback
+          if (status === 'completed') {
+            const feedbackResponse = await apiClient.getSubmissionFeedback(successSubmissionId);
+            if (feedbackResponse.data?.overall_score !== undefined) {
+              setDialogScore(feedbackResponse.data.overall_score);
+            }
+            // Refresh session submissions list
+            const submissionsResult = await apiClient.getSessionSubmissions(sessionId);
+            if (submissionsResult.data) {
+              setSubmissions(submissionsResult.data.submissions || []);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Dialog Poll] Error polling submission:', err);
+      }
+    };
+
+    // Poll immediately, then every 5 seconds
+    pollSubmission();
+    const intervalId = setInterval(pollSubmission, 5000);
+
+    // Cleanup on unmount or when dialog closes
+    return () => {
+      console.log('[Dialog Poll] Clearing interval');
+      clearInterval(intervalId);
+    };
+  }, [successSubmissionId, showSuccessDialog, sessionId]);
 
   const loadSessionData = async () => {
     setIsLoading(true);
@@ -1065,43 +1112,83 @@ export default function SessionPage() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Analysis in Progress Indicator */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
-              <div className="flex items-start gap-3">
-                <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                    AI Analysis In Progress
-                  </h4>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Our 6 AI agents are analyzing your document. This typically takes <strong>1-2 minutes</strong>.
-                  </p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                    You can view real-time progress on the analysis page.
-                  </p>
+            {/* Analysis Status Indicator */}
+            {dialogAnalysisStatus === "completed" ? (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+                      ✅ Analysis Complete!
+                    </h4>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Your document has been analyzed{dialogScore !== null && ` and scored ${dialogScore}/100`}.
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                      Click "View Results" below to see detailed feedback.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : dialogAnalysisStatus === "failed" ? (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-red-900 dark:text-red-100 mb-1">
+                      ❌ Analysis Failed
+                    </h4>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      The AI analysis encountered an error. Please try re-submitting your document.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                      AI Analysis In Progress
+                    </h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Our 6 AI agents are analyzing your document. This typically takes <strong>1-2 minutes</strong>.
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                      This dialog will update automatically when analysis completes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 mt-4 pt-4 border-t">
               <Button
                 variant="outline"
-                onClick={() => setShowSuccessDialog(false)}
+                onClick={() => {
+                  setShowSuccessDialog(false);
+                  setDialogAnalysisStatus("pending"); // Reset status for next time
+                  setDialogScore(null);
+                }}
                 className="flex-1"
               >
-                Stay Here
+                {dialogAnalysisStatus === "completed" ? "Close" : "Stay Here"}
               </Button>
               <Button
                 onClick={() => {
                   setShowSuccessDialog(false);
+                  setDialogAnalysisStatus("pending"); // Reset status for next time
+                  setDialogScore(null);
                   if (successSubmissionId) {
                     router.push(`/submission/${successSubmissionId}`);
                   }
                 }}
                 className="flex-1"
+                variant={dialogAnalysisStatus === "completed" ? "default" : "outline"}
               >
                 <FileText className="mr-2 h-4 w-4" />
-                View Progress
+                {dialogAnalysisStatus === "completed" ? "View Results" : "View Progress"}
               </Button>
             </div>
           </DialogContent>

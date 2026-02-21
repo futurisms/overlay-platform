@@ -95,10 +95,14 @@ export default function SubmissionPage() {
 
   // Auto-refresh when analysis is in progress
   useEffect(() => {
-    if (!submission) return;
+    if (!submission) {
+      console.log('[Polling] No submission, not polling');
+      return;
+    }
 
     // Don't poll if stale
     if (isStale) {
+      console.log('[Polling] Submission is stale, stopped polling');
       return;
     }
 
@@ -107,8 +111,11 @@ export default function SubmissionPage() {
                        submission.ai_analysis_status === "in_progress";
 
     if (!shouldPoll) {
+      console.log(`[Polling] Status is "${submission.ai_analysis_status}", not polling`);
       return;
     }
+
+    console.log(`[Polling] Starting poll interval - status: ${submission.ai_analysis_status}`);
 
     // Poll every 10 seconds when analysis is in progress
     const intervalId = setInterval(() => {
@@ -116,7 +123,10 @@ export default function SubmissionPage() {
       loadSubmissionData();
     }, 10000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      console.log('[Polling] Clearing interval');
+      clearInterval(intervalId);
+    };
   }, [submission?.ai_analysis_status, isStale]);
 
   const loadSubmissionData = async () => {
@@ -134,6 +144,7 @@ export default function SubmissionPage() {
       if (submissionResult.error) {
         setError(submissionResult.error);
       } else if (submissionResult.data) {
+        console.log(`[Poll Result] ai_analysis_status: ${submissionResult.data.ai_analysis_status}`);
         setSubmission(submissionResult.data);
       }
 

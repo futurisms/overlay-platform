@@ -64,6 +64,24 @@ class ApiClient {
         headers,
       });
 
+      // Handle 401 Unauthorized - session expired
+      if (response.status === 401) {
+        console.log('[Auth] 401 Unauthorized - clearing tokens and redirecting to login');
+        // Clear all auth tokens
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('idToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('accessToken');
+          // Redirect to login with session expired message
+          window.location.href = '/login?session=expired';
+        }
+        return {
+          error: 'Session expired',
+          status: 401,
+        };
+      }
+
       const data = await response.json();
 
       return {
