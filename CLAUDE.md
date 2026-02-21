@@ -42,8 +42,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Overlay Platform is an AI-powered document review and evaluation system with a Next.js frontend and AWS Lambda backend. The system processes documents through a 6-agent AI workflow that provides structured feedback based on configurable evaluation criteria.
 
-**Current Version**: v1.7 (Analyst Access System Fixed)
-**Release Date**: February 5, 2026
+**Current Version**: v1.8 (UX Improvements & Dialog Polling)
+**Release Date**: February 11, 2026
 **Status**: Production Ready
 
 ### Two-Role System
@@ -280,12 +280,27 @@ cdk deploy OverlayComputeStack
 
 ### Frontend Changes
 
-**Production deployment is NOT set up yet**. Frontend currently runs on localhost only.
+**Production deployment**: Frontend is deployed on Vercel with automatic deployment from GitHub master branch.
 
-Options discussed:
-- Vercel (recommended for Next.js)
-- AWS Amplify (attempted but failed with Next.js 16)
-- S3 + CloudFront (requires SSR workaround for dynamic routes)
+**Deployment Flow**:
+1. Push commits to `master` branch: `git push origin master`
+2. Vercel automatically detects push via GitHub webhook
+3. Builds Next.js application (`npm run build`)
+4. Deploys to production URL
+5. Deployment typically takes 2-3 minutes
+
+**Vercel Configuration**:
+- Framework: Next.js 16.1.4
+- Build Command: `npm run build`
+- Output Directory: `.next`
+- Install Command: `npm install`
+- Environment Variables: Set in Vercel dashboard (match `frontend/.env.local`)
+
+**Important Notes**:
+- No need to run proxy server in production (API Gateway has CORS configured for production domain)
+- Local development still requires proxy server for CORS
+- Check Vercel dashboard for deployment status and logs
+- Rollback available via Vercel dashboard if needed
 
 ## Critical Implementation Details
 
@@ -345,6 +360,42 @@ FROM document_submissions
 WHERE submission_id = $1;
 
 -- Returns: [{"file_name": "...", "s3_key": "...", "file_size": 123, "upload_order": 1}]
+```
+
+### Score Display Logic (v1.8)
+
+**IMPORTANT**: Session pages display content score, NOT overall average score.
+
+**Rationale**:
+- Overall average score (combines all 6 agents) can be misleadingly high (e.g., 77)
+- Content score (structure + content analysis) better reflects document quality (e.g., 52)
+- Matches what users see on submission detail page for consistency
+
+**SQL Query Pattern** (`lambda/functions/api/sessions/index.js`):
+```sql
+-- Extract content score from JSONB feedback
+(content::jsonb->'scores'->>'content')::numeric as overall_score
+
+-- NOT average score:
+-- (content::jsonb->'scores'->>'average')::numeric  ❌ WRONG
+```
+
+**Where Applied**:
+- Session detail page submission cards
+- Session list page submission counts
+- Dashboard session cards
+
+**Feedback Structure**:
+```json
+{
+  "scores": {
+    "average": 77,        // Overall average (all agents)
+    "content": 52,        // Content quality score ← Used in UI
+    "structure": 45,
+    "grammar": 95,
+    "consistency": 80
+  }
+}
 ```
 
 ### Notes Feature (v1.5) - Complete System
@@ -563,6 +614,131 @@ async getSubmissionContent(submissionId: string) {
 - Large documents may take 2-5 seconds to load (shows loading indicator)
 - Consider future caching if performance becomes an issue
 
+### Auto-Logout on Token Expiration (v1.8)
+
+**Purpose**: Gracefully handle JWT token expiration by automatically logging users out and redirecting to login page.
+
+**Implementation** (`frontend/lib/api-client.ts`):
+```typescript
+// Global 401 handler in request method (after line 66)
+if (response.status === 401) {
+  console.log('[Auth] 401 Unauthorized - clearing tokens and redirecting to login');
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('idToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('accessToken');
+    window.location.href = '/login?session=expired';
+  }
+  return { error: 'Session expired', status: 401 };
+}
+```
+
+**Login Page Detection** (`frontend/app/login/page.tsx`):
+```typescript
+useEffect(() => {
+  const sessionParam = searchParams.get('session');
+  if (sessionParam === 'expired') {
+    setError('Your session has expired. Please sign in again.');
+  }
+}, [searchParams]);
+```
+
+**Key Features**:
+- Clears all authentication tokens from localStorage
+- Redirects to `/login?session=expired`
+- Shows user-friendly "session expired" error message
+- Prevents showing technical 401 errors to users
+- Works across all API endpoints automatically
+
+### Submission Dialog Real-Time Polling (v1.8)
+
+**Purpose**: Keep users informed of AI analysis progress by polling submission status and showing real-time updates in the success dialog.
+
+**Implementation** (`frontend/app/session/[id]/page.tsx`):
+```typescript
+// State for dialog polling
+const [dialogAnalysisStatus, setDialogAnalysisStatus] = useState<string>("pending");
+const [dialogScore, setDialogScore] = useState<number | null>(null);
+
+// Polling useEffect (polls every 5 seconds)
+useEffect(() => {
+  if (!successSubmissionId || !showSuccessDialog) return;
+
+  const pollSubmission = async () => {
+    try {
+      const response = await apiClient.getSubmission(successSubmissionId);
+      if (response.data) {
+        const status = response.data.ai_analysis_status;
+        setDialogAnalysisStatus(status);
+
+        if (status === 'completed') {
+          const feedbackResponse = await apiClient.getSubmissionFeedback(successSubmissionId);
+          if (feedbackResponse.data?.overall_score !== undefined) {
+            setDialogScore(feedbackResponse.data.overall_score);
+          }
+          // Auto-refresh submissions list
+          const submissionsResult = await apiClient.getSessionSubmissions(sessionId);
+          if (submissionsResult.data) {
+            setSubmissions(submissionsResult.data.submissions || []);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Dialog Poll] Error polling submission:', err);
+    }
+  };
+
+  pollSubmission(); // Poll immediately
+  const intervalId = setInterval(pollSubmission, 5000); // Then every 5 seconds
+  return () => clearInterval(intervalId); // Cleanup on unmount
+}, [successSubmissionId, showSuccessDialog, sessionId]);
+```
+
+**UI States**:
+- **Pending/In Progress** (Blue): Spinner + "AI Analysis In Progress" + "View Progress" button
+- **Completed** (Green): Checkmark + "Analysis Complete! Scored X/100" + "View Results" button
+- **Failed** (Red): X icon + "Analysis Failed" + "Close" button
+
+**Key Features**:
+- Polls every 5 seconds when dialog is open
+- Automatically stops polling when dialog closes
+- Fetches final score when analysis completes
+- Auto-refreshes session submissions list
+- Button label changes from "View Progress" to "View Results"
+- Visual state changes (color, icon) based on status
+
+### Dashboard Project Filtering & Pagination (v1.8)
+
+**Purpose**: Improve navigation and organization for users with many analysis sessions.
+
+**Features** (`frontend/app/dashboard/page.tsx`):
+- **Project Filtering**: Dropdown filter with "All", "Uncategorized", and project names
+- **Pagination**: 6 sessions per page with page number buttons
+- **Session Counter**: Shows "Showing X-Y of Z sessions"
+- **Smart Pagination**: Shows first page, last page, current page, and adjacent pages with ellipsis
+
+**Implementation**:
+```typescript
+// Filter sessions by selected project
+const filteredSessions = selectedProject === 'All' || !selectedProject
+  ? sessions
+  : selectedProject === 'Uncategorized'
+  ? sessions.filter(s => !s.project_name)
+  : sessions.filter(s => s.project_name === selectedProject);
+
+// Pagination
+const SESSIONS_PER_PAGE = 6;
+const paginatedSessions = filteredSessions.slice(startIndex, endIndex);
+```
+
+**Key Features**:
+- Resets to page 1 when filter changes
+- Extracts unique project names from sessions
+- Shows all projects sorted alphabetically
+- Previous/Next buttons disabled at boundaries
+- Responsive grid layout (1 col mobile, 2 cols desktop)
+
 ### Analyst Invitation and Signup System
 
 **CRITICAL**: The analyst signup process must create users in BOTH Cognito and PostgreSQL with matching user_ids.
@@ -736,6 +912,48 @@ After deployment, run through:
 6. **Feedback Display**: Check scores, strengths, weaknesses, recommendations
 
 7. **Download**: Test main document and appendix downloads
+
+### Dialog Polling (v1.8)
+
+**Real-Time Status Updates**
+8. Navigate to session detail page
+9. Submit a new document (file or paste text)
+10. Verify success dialog appears immediately after submission
+11. Verify dialog shows blue state with spinner
+12. Verify button says "View Progress"
+13. Keep dialog open and wait for analysis to complete (30-60 seconds)
+14. Verify dialog automatically updates to green state
+15. Verify checkmark icon appears
+16. Verify message shows "Analysis Complete! Scored X/100"
+17. Verify button changes to "View Results"
+18. Click "View Results" → verify redirects to submission detail page
+19. Navigate back to session detail page
+20. Verify submissions list automatically refreshed (new submission shows completed status)
+
+**Polling Behavior**
+21. Submit another document
+22. Open browser DevTools console
+23. Verify "[Dialog Poll]" log messages appear every 5 seconds
+24. Close dialog before analysis completes
+25. Verify polling stops (no more console logs)
+26. Check CloudWatch logs for submissions handler
+27. Verify no excessive polling requests after dialog closed
+
+**Error States**
+28. Manually trigger analysis failure (if possible, via Lambda)
+29. Verify dialog shows red state with X icon
+30. Verify message shows "Analysis Failed"
+31. Verify button says "Close" or "Retry"
+
+**Auto-Logout Testing (v1.8)**
+32. Login to application
+33. Open browser DevTools → Application → Local Storage
+34. Delete `auth_token` key to simulate expired token
+35. Make any API request (navigate to different page)
+36. Verify automatic redirect to `/login?session=expired`
+37. Verify error message: "Your session has expired. Please sign in again."
+38. Verify all token keys cleared from localStorage
+39. Login again → verify full access restored
 
 ### Original Submission Content Viewer (v1.6)
 
@@ -954,16 +1172,31 @@ After deployment, run through:
 
 ## Project Status
 
-**Version**: v1.7 - Analyst Access System Fixed (February 5, 2026)
+**Version**: v1.8 - UX Improvements & Dialog Polling (February 11, 2026)
 **Backend**: ✅ Fully deployed and operational (10 API handlers + content endpoint)
-**Database**: ✅ v1.7 schema with analyst access control (21 tables, 155 indexes, 3 migrations for user_id fixes)
-**Frontend**: ⚠️ Localhost only (production deployment needed)
-**AI Workflow**: ✅ 6 agents processing submissions
+**Database**: ✅ v1.7 schema with analyst access control (21 tables, 155 indexes)
+**Frontend**: ✅ Deployed on Vercel (auto-deployment from GitHub master branch)
+**AI Workflow**: ✅ 6 agents processing submissions with real-time status updates
 **Notes Feature**: ✅ All phases complete (sidebar, text selection, database persistence, saved library, Word export, full CRUD)
 **Content Viewer**: ✅ Expandable section with lazy-loaded S3 content extraction and copy functionality
 **Access Control**: ✅ Two-role system (admin/analyst) with session-based permissions and submission filtering
+**Session Management**: ✅ Auto-logout on token expiration, project filtering, pagination
+**Real-Time Updates**: ✅ Dialog polling for submission status, auto-refresh of session lists
 
 ### Version History
+
+**v1.8** (February 11, 2026) - UX Improvements & Dialog Polling
+- ✅ Fixed session page to show content score (52) instead of overall average (77)
+- ✅ Fixed submission header to show session name instead of document name for context
+- ✅ Added auto-logout on 401: clears tokens and redirects to login with "session expired" message
+- ✅ Implemented real-time dialog polling: updates every 5 seconds to show completion status
+- ✅ Dialog shows green/red/blue states for completed/failed/in-progress
+- ✅ Auto-refreshes session submissions list when analysis completes
+- ✅ Button changes from "View Progress" to "View Results" on completion
+- ✅ Dashboard now has project filtering and pagination (6 sessions per page)
+- ✅ Added comprehensive debug logs for submission status polling
+- UX Improvements: Better error handling, real-time updates, improved navigation
+- Status: Production Ready
 
 **v1.7** (February 5, 2026) - Analyst Access System Fixed
 - ✅ Fixed analyst invitation signup to create matching Cognito and PostgreSQL user_ids
